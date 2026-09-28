@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Mua Gói Cước Đăng Tin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+            --accent-color: #ff6b00;
+        }
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .brand-header {
+            background-color: var(--primary-color);
+            padding: 18px 0;
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .brand-logo {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .btn-success-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        .btn-success-custom:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+        .package-card {
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+            border-radius: 16px;
+            border: 2px solid #e9ecef;
+            background: #fff;
+            height: 100%;
+        }
+        .package-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+        }
+        .btn-check:checked + .package-card {
+            border: 2px solid var(--primary-color) !important;
+            background-color: rgba(0, 177, 79, 0.02) !important;
+            box-shadow: 0 0.5rem 1rem rgba(0, 177, 79, 0.1) !important;
+        }
+        .package-card.special-package {
+            border: 2px solid #ffab73;
+            background: linear-gradient(180deg, rgba(255,107,0,0.02) 0%, rgba(255,255,255,1) 50%);
+        }
+        .btn-check:checked + .package-card.special-package {
+            border: 2px solid var(--accent-color) !important;
+            background-color: rgba(255, 107, 0, 0.04) !important;
+            box-shadow: 0 0.5rem 1rem rgba(255, 107, 0, 0.15) !important;
+        }
+        .package-price {
+            font-size: 1.5rem;
+            white-space: nowrap;
+        }
+        /* Ẩn khung thanh toán lúc ban đầu */
+        #payment-info-box {
+            display: none;
+            background: #fff8f5;
+            border: 2px dashed var(--accent-color);
+            border-radius: 12px;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .copy-btn {
+            cursor: pointer;
+            color: var(--accent-color);
+            transition: color 0.2s;
+        }
+        .copy-btn:hover {
+            color: #d35400;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <!-- THANH HEADER THƯƠNG HIỆU -->
+    <header class="brand-header">
+        <div class="container">
+            <a href="{% url 'home' %}" class="brand-logo">
+                <i class="fas fa-briefcase"></i> CTJob
+            </a>
+        </div>
+    </header>
+
+    <div class="container mt-4 mb-5" style="max-width: 950px;">
+        <div class="mb-3 text-muted small">
+            <a href="{% url 'recruiter_job_list' %}" class="text-decoration-none text-muted">Trang chủ</a> /
+            <a href="{% url 'recruiter_job_list' %}" class="text-decoration-none text-muted">Quản lý tin tuyển dụng</a> / Mua gói cước
+        </div>
+
+        <h2 class="mb-3 fw-bold text-dark">Mua Gói Cước Đăng Tin Tuyển Dụng</h2>
+        
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Thẻ tóm tắt tài khoản -->
+        <div class="card shadow-sm border-0 rounded-4 mb-4 bg-white">
+            <div class="card-body">
+                <h5 class="card-title text-success fw-bold mb-3"><i class="fas fa-wallet me-2"></i>Trạng thái tài khoản của bạn</h5>
+                <div class="row text-secondary small">
+                    <div class="col-md-4">
+                        <p class="mb-1">Lượt miễn phí còn lại:</p>
+                        <h5 class="fw-bold text-dark">{{ profile_account.free_posts_left }} tin</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="mb-1">Tin trong gói còn lại:</p>
+                        <h5 class="fw-bold text-dark">{{ profile_account.posts_remaining }} tin</h5>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="mb-1">Hạn sử dụng gói:</p>
+                        <h5 class="fw-bold text-dark">
+                            {% if profile_account.is_package_active and profile_account.package_expires_at %}
+                                {{ profile_account.package_expires_at|date:"d/m/Y H:i" }}
+                            {% else %}
+                                Chưa có gói Active
+                            {% endif %}
+                        </h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form chọn gói và thanh toán -->
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-4">
+                <form id="payment-form" method="POST" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold mb-3">1. Chọn gói cước phù hợp (Bấm vào gói để hiện mã QR tự động điền tiền và nội dung):</label>
+                        <div class="row g-4 justify-content-center">
+                            {% for pkg in packages %}
+                                <div class="col-md-4">
+                                    <input type="radio" class="btn-check package-radio" name="package_id" id="pkg_{{ pkg.id }}" value="{{ pkg.id }}" data-name="{{ pkg.name }}" data-price="{{ pkg.price }}" autocomplete="off" required {% if request.POST.package_id == pkg.id|stringformat:"s" %}checked{% endif %}>
+                                    
+                                    <label class="card package-card p-3 text-center {% if '1 Năm' in pkg.name or pkg.name == 'Gói 1 Năm' %}special-package{% endif %}" for="pkg_{{ pkg.id }}">
+                                        {% if "1 Năm" in pkg.name or pkg.name == 'Gói 1 Năm' %}
+                                            <div class="mb-2">
+                                                <span class="badge rounded-pill px-3 py-1 text-uppercase shadow-sm text-white" style="font-size: 0.6rem; background-color: var(--accent-color);">
+                                                    🔥 Ưu đãi tốt nhất
+                                                </span>
+                                            </div>
+                                        {% endif %}
+
+                                        <div class="card-body d-flex flex-column justify-content-between p-1">
+                                            <div>
+                                                <span class="badge bg-success bg-opacity-10 text-success mb-2 px-2 py-1">Gói cước</span>
+                                                <h5 class="fw-bold text-dark mb-2">{{ pkg.name }}</h5>
+                                                <div class="fw-bold my-2 package-price price-text {% if '1 Năm' in pkg.name or pkg.name == 'Gói 1 Năm' %}text-danger{% else %}text-success{% endif %}" data-price="{{ pkg.price }}">0 đ</div>
+                                            </div>
+                                            <hr class="text-muted opacity-25 my-2">
+                                            <div class="text-muted small text-start ps-1">
+                                                <div class="mb-1"><i class="fas fa-check-circle text-success me-1"></i>Đăng: <strong class="text-dark">{{ pkg.post_limit }} tin</strong></div>
+                                                <div><i class="fas fa-clock text-success me-1"></i>Hạn: <strong class="text-dark">{{ pkg.duration_days }} ngày</strong></div>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                            {% empty %}
+                                <div class="col-12 text-center text-muted">
+                                    <p>Chưa có gói cước nào trong hệ thống.</p>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- KHUNG HIỆN THỊ VIETQR TỰ ĐỘNG ĐIỀN -->
+                    <div id="payment-info-box" class="p-4 mb-4">
+                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-qrcode text-danger me-2"></i>Quét mã QR để thanh toán tự động</h5>
+                        <div class="row align-items-center">
+                            <div class="col-md-7 small">
+                                <p class="mb-2">Gói đã chọn: <strong id="selected-pkg-name" class="text-danger"></strong></p>
+                                <p class="mb-2">Số tiền: <strong id="selected-pkg-price" class="text-danger fs-5"></strong></p>
+                                <p class="mb-2">Chủ tài khoản: <strong class="text-success">LE CHI THANH</strong></p>
+                                <p class="mb-2">Ngân hàng: <strong>MB Bank</strong> | STK: <strong class="text-primary">0368031812</strong> <i class="fas fa-copy copy-btn ms-1" onclick="copyToClipboard('0368031812', 'Đã sao chép số tài khoản!')" title="Sao chép STK"></i></p>
+                                <p class="mb-0">Nội dung CK: <code id="transfer-syntax" class="bg-white px-2 py-1 border rounded text-danger fw-bold"></code> <i class="fas fa-copy copy-btn ms-1" onclick="copyContent('transfer-syntax', 'Đã sao chép nội dung chuyển khoản!')" title="Sao chép nội dung"></i></p>
+                            </div>
+                            <div class="col-md-5 text-center mt-3 mt-md-0">
+                                <div class="bg-white p-3 border rounded shadow-sm d-inline-block">
+                                    <!-- MÃ QR ĐỘNG TỰ ĐỘNG NHẬN DIỆN TÀI KHOẢN, SỐ TIỀN VÀ NỘI DUNG -->
+                                    <img id="dynamic-qr-img" src="" alt="Mã QR Chuyển Khoản" class="img-fluid rounded" style="max-width: 180px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="proof_image" class="form-label fw-semibold">2. Tải lên biên lai / Ảnh chụp màn hình chuyển khoản thành công:</label>
+                        <input type="file" name="proof_image" id="proof_image" class="form-control" accept="image/*" required>
+                        <div class="form-text">Hệ thống sẽ duyệt yêu cầu và kích hoạt gói ngay sau khi xác thực biên lai của bạn.</div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center pt-2">
+                        <button type="submit" class="btn btn-success-custom btn-lg rounded-pill px-5 fw-semibold shadow-sm">Gửi yêu cầu thanh toán</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script xử lý hiển thị, sinh QR động và popup thông báo -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const priceElements = document.querySelectorAll(".price-text");
+            priceElements.forEach(function(el) {
+                let rawPrice = parseInt(el.getAttribute("data-price"));
+                if (!isNaN(rawPrice)) {
+                    el.textContent = rawPrice.toLocaleString('vi-VN') + " đ";
+                }
+            });
+
+            const radios = document.querySelectorAll(".package-radio");
+            const paymentBox = document.getElementById("payment-info-box");
+            const nameSpan = document.getElementById("selected-pkg-name");
+            const priceSpan = document.getElementById("selected-pkg-price");
+            const syntaxCode = document.getElementById("transfer-syntax");
+            const qrImg = document.getElementById("dynamic-qr-img");
+
+            const recruiterName = "{{ request.user.username }}";
+
+            function updatePaymentInfo(radio) {
+                paymentBox.style.display = "block";
+                
+                let pkgName = radio.getAttribute("data-name");
+                let rawPrice = parseInt(radio.getAttribute("data-price"));
+                let formattedPrice = rawPrice.toLocaleString('vi-VN') + " đ";
+
+                nameSpan.textContent = pkgName;
+                priceSpan.textContent = formattedPrice;
+
+                let memo = `MUA ${pkgName} - ${recruiterName}`;
+                syntaxCode.textContent = memo;
+
+                let bankId = "MB";
+                let accountNumber = "0368031812";
+                let accountName = "LE CHI THANH";
+                
+                let qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNumber}-compact2.jpg?amount=${rawPrice}&addInfo=${encodeURIComponent(memo)}&accountName=${encodeURIComponent(accountName)}`;
+                qrImg.src = qrUrl;
+            }
+
+            radios.forEach(function(radio) {
+                radio.addEventListener("change", function() {
+                    if(this.checked) {
+                        updatePaymentInfo(this);
+                    }
+                });
+
+                if (radio.checked) {
+                    updatePaymentInfo(radio);
+                }
+            });
+
+            // Bắt sự kiện submit form để hiển thị thông báo thành công dạng popup đẹp mắt
+            const paymentForm = document.getElementById("payment-form");
+            paymentForm.addEventListener("submit", function(e) {
+                // Kiểm tra xem đã chọn gói và chọn file chưa trước khi hiện popup
+                const selectedRadio = document.querySelector(".package-radio:checked");
+                const fileInput = document.getElementById("proof_image");
+
+                if (selectedRadio && fileInput.files.length > 0) {
+                    e.preventDefault(); // Dừng form lại một nhịp để hiện SweetAlert
+                    Swal.fire({
+                        title: 'Đã gửi yêu cầu thanh toán!',
+                        text: 'Hệ thống đã nhận được biên lai và đang chờ Quản trị viên xét duyệt.',
+                        icon: 'success',
+                        confirmButtonText: 'Đồng ý',
+                        confirmButtonColor: '#00b14f',
+                        timer: 2500,
+                        timerProgressBar: true
+                    }).then((result) => {
+                        paymentForm.submit(); // Cho phép form tiếp tục gửi dữ liệu về server
+                    });
+                }
+            });
+        });
+
+        function copyToClipboard(text, message) {
+            navigator.clipboard.writeText(text).then(function() {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: message,
+                    showConfirmButton: false,
+                    timer: 1500
+                });
+            });
+        }
+
+        function copyContent(elementId, message) {
+            let text = document.getElementById(elementId).textContent;
+            copyToClipboard(text, message);
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

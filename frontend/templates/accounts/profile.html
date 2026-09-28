@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Hồ sơ cá nhân</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+        }
+        .text-custom-primary {
+            color: var(--primary-color) !important;
+        }
+        .btn-success-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        .btn-success-custom:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <!-- Thanh điều hướng đồng bộ -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2 px-3 rounded-pill">Đăng nhập</a>
+                    <a href="{% url 'signup' %}" class="btn btn-light text-success btn-sm px-3 rounded-pill fw-semibold">Đăng ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <!-- Đường dẫn điều hướng breadcrumb -->
+        <div class="row justify-content-center mb-3">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb" class="breadcrumb-custom text-muted small">
+                    <a href="{% url 'home' %}">Trang chủ</a> / <span class="text-dark">Hồ sơ cá nhân</span>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8 bg-white p-4 p-md-5 rounded-4 shadow-sm">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h3 class="text-custom-primary fw-bold mb-0">
+                        <i class="fas {% if is_recruiter %}fa-building{% else %}fa-user-circle{% endif %} me-2"></i>
+                        {% if is_recruiter %}Hồ sơ Nhà tuyển dụng{% else %}Hồ sơ cá nhân{% endif %}
+                    </h3>
+                    <!-- Nút chuyển sang trang chỉnh sửa -->
+                    <a href="{% url 'profile_edit' %}" class="btn btn-warning btn-sm rounded-pill px-3 fw-semibold text-dark">
+                        <i class="fas fa-edit me-1"></i> Chỉnh sửa hồ sơ
+                    </a>
+                </div>
+
+                <!-- Hiển thị Ảnh đại diện cho ứng viên -->
+                {% if not is_recruiter %}
+                <div class="mb-4 text-center">
+                    {% if profile.avatar %}
+                        <img src="{{ profile.avatar.url }}" alt="Ảnh đại diện" class="rounded-circle shadow-sm border" style="width: 120px; height: 120px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-light text-muted rounded-circle border d-inline-flex align-items-center justify-content-center fw-bold mx-auto" style="width: 120px; height: 120px;">
+                            <i class="fas fa-user fa-3x text-secondary"></i>
+                        </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <p class="mb-1 text-muted small">Tên đăng nhập:</p>
+                        <h5 class="fw-semibold">{{ request.user.username }}</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1 text-muted small">Email liên hệ:</p>
+                        <h5 class="fw-semibold">{{ request.user.email|default:"Chưa cập nhật" }}</h5>
+                    </div>
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <p class="mb-1 text-muted small">Họ tên:</p>
+                        <h5 class="fw-semibold">{{ request.user.first_name }} {{ request.user.last_name }}</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1 text-muted small">Số điện thoại:</p>
+                        <h5 class="fw-semibold">
+                            {% if is_recruiter %}
+                                {{ company_profile.phone|default:"Chưa cập nhật" }}
+                            {% else %}
+                                {{ profile.phone|default:"Chưa cập nhật" }}
+                            {% endif %}
+                        </h5>
+                    </div>
+                </div>
+
+                <!-- PHẦN DÀNH RIÊNG CHO NHÀ TUYỂN DỤNG -->
+                {% if is_recruiter %}
+                <hr class="my-4">
+                <h5 class="text-secondary fw-bold mb-3"><i class="fas fa-info-circle me-2"></i>Thông tin công ty</h5>
+
+                <!-- Hiển thị Logo công ty -->
+                <div class="mb-4 text-center">
+                    <p class="mb-2 text-muted small text-start">Logo công ty:</p>
+                    {% if company_profile.company_logo %}
+                        <img src="{{ company_profile.company_logo.url }}" alt="Logo công ty" class="rounded shadow-sm border" style="width: 120px; height: 120px; object-fit: cover;">
+                    {% else %}
+                        <div class="bg-light text-muted rounded border d-inline-flex align-items-center justify-content-center fw-bold" style="width: 120px; height: 120px;">
+                            Chưa có logo
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="row mb-3">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <p class="mb-1 text-muted small">Tên công ty:</p>
+                        <h5 class="fw-semibold">{{ company_profile.company_name|default:"Chưa cập nhật" }}</h5>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1 text-muted small">Website công ty:</p>
+                        <h5 class="fw-semibold">
+                            {% if company_profile.website %}
+                                <a href="{{ company_profile.website }}" target="_blank" class="text-decoration-none text-success">
+                                    {{ company_profile.website }}
+                                </a>
+                            {% else %}
+                                Chưa cập nhật
+                            {% endif %}
+                        </h5>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <p class="mb-1 text-muted small">Địa chỉ công ty:</p>
+                    <h5 class="fw-semibold">{{ company_profile.address|default:"Chưa cập nhật" }}</h5>
+                </div>
+
+                <div class="mb-3">
+                    <p class="mb-1 text-muted small">Giới thiệu công ty:</p>
+                    <p class="text-dark bg-light p-3 rounded-3">{{ company_profile.description|default:"Chưa có thông tin giới thiệu." }}</p>
+                </div>
+                {% endif %}
+
+                <!-- PHẦN DÀNH RIÊNG CHO ỨNG VIÊN -->
+                {% if not is_recruiter %}
+                <hr class="my-4">
+                <h5 class="text-secondary fw-bold mb-3"><i class="fas fa-id-card me-2"></i>Thông tin ứng tuyển</h5>
+
+                <div class="mb-3">
+                    <p class="mb-1 text-muted small">Ngành đào tạo:</p>
+                    <h5 class="fw-semibold">{{ profile.major|default:"Chưa cập nhật" }}</h5>
+                </div>
+
+                <div class="mb-3">
+                    <p class="mb-1 text-muted small">Kỹ năng:</p>
+                    <h5 class="fw-semibold">{{ profile.skills|default:"Chưa cập nhật" }}</h5>
+                </div>
+
+                <div class="mb-3">
+                    <p class="mb-1 text-muted small">Giới thiệu bản thân:</p>
+                    <p class="text-dark bg-light p-3 rounded-3">{{ profile.bio|default:"Chưa có thông tin giới thiệu." }}</p>
+                </div>
+
+                <div class="mb-4">
+                    <p class="mb-1 text-muted small">File CV của bạn:</p>
+                    {% if profile.cv_file %}
+                    <a href="{{ profile.cv_file.url }}" target="_blank" class="btn btn-success-custom rounded-pill px-4 fw-semibold shadow-sm">
+                        <i class="fas fa-file-pdf me-1"></i> Xem/Tải CV đã tải lên
+                    </a>
+                    {% else %}
+                    <span class="text-muted fst-italic">Chưa tải lên CV nào.</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <hr class="my-4">
+
+                <div class="d-flex justify-content-end">
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger rounded-pill px-4 fw-semibold shadow-sm">
+                            <i class="fas fa-sign-out-alt me-1"></i> Đăng xuất
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Cập nhật trạng thái ứng tuyển</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .text-custom-primary {
+            color: var(--primary-color) !important;
+        }
+        .btn-success-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        .btn-success-custom:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+        .form-select:focus, .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(0, 177, 79, 0.25);
+        }
+        .breadcrumb-custom {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Khung màu xanh thương hiệu y hệt các trang khác -->
+    <div style="background-color: #00b14f;" class="shadow-sm mb-4 py-3">
+        <div class="container d-flex justify-content-between align-items-center">
+            <a href="{% url 'home' %}" class="fs-4 fw-bold text-decoration-none text-white">
+                <i class="fas fa-briefcase me-2"></i>CTJob
+            </a>
+            
+        </div>
+    </div>
+
+    <div class="container pb-5" style="max-width: 650px;">
+        <!-- Dòng điều hướng kiểu Trang chủ / ... -->
+        <div class="breadcrumb-custom mb-3">
+            <a href="{% url 'home' %}">Trang chủ</a> / 
+            <a href="{% url 'recruiter_job_list' %}">Quản lý tin tuyển dụng</a> / 
+            <a href="{% url 'job_applications' application.job.pk %}">Danh sách ứng viên</a> / 
+            <span class="text-dark">Cập nhật đơn</span>
+        </div>
+
+        <div class="card shadow-sm border-0 rounded-4">
+            <div class="card-body p-4 p-md-5">
+                <h3 class="mb-4 fw-bold text-custom-primary text-center">Cập Nhật Đơn Ứng Tuyển</h3>
+                
+                <div class="bg-light p-3 rounded-3 mb-4 border">
+                    <p class="mb-2"><strong><i class="fas fa-user text-muted me-2"></i>Ứng viên:</strong> <span class="text-dark fw-semibold">{{ application.candidate.username }}</span></p>
+                    <p class="mb-0"><strong><i class="fas fa-briefcase text-muted me-2"></i>Công việc:</strong> <span class="text-dark fw-semibold">{{ application.job.title }}</span></p>
+                </div>
+
+                {% if application.needs_interview_reminder %}
+                    <div class="alert alert-warning border-0 rounded-3 mb-4 small">
+                        <i class="fas fa-bell me-2"></i> {{ application.interview_reminder_message }}
+                    </div>
+                {% endif %}
+                
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold text-dark">Trạng thái đơn:</label>
+                        <select name="status" class="form-select rounded-3 py-2">
+                            <option value="Pending" {% if application.status == 'Pending' %}selected{% endif %}>Đang chờ duyệt</option>
+                            <option value="Approved" {% if application.status == 'Approved' %}selected{% endif %}>Đã duyệt / Phỏng vấn</option>
+                            <option value="Rejected" {% if application.status == 'Rejected' %}selected{% endif %}>Từ chối</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Ngày hẹn:</label>
+                            <input type="date" name="interview_date" class="form-control rounded-3 py-2" value="{{ interview_date }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold text-dark">Giờ hẹn:</label>
+                            <input type="time" name="interview_time" class="form-control rounded-3 py-2" value="{{ interview_time }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold text-dark">Nội dung điểm hẹn:</label>
+                        <textarea name="interview_note" class="form-control rounded-3" rows="4" placeholder="Ví dụ: Phỏng vấn vòng 2 tại văn phòng, địa điểm: ... hoặc link Zoom: ...">{{ interview_note }}</textarea>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success-custom py-2.5 rounded-pill fw-semibold shadow-sm">Lưu thay đổi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

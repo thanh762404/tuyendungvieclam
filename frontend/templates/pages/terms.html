@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Điều khoản dịch vụ - CTJob</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .bg-primary { background-color: #00b14f !important; }
+        .text-primary { color: #00b14f !important; }
+        .btn-primary { background-color: #00b14f !important; border-color: #00b14f !important; }
+        .btn-primary:hover { background-color: #009543 !important; }
+        body { padding-top: 75px; }
+    </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+    <!-- Navbar cố định thương hiệu CTJob -->
+    <div class="fixed-top shadow-sm">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Nội dung chính -->
+    <div class="container my-5 flex-grow-1" style="max-width: 900px;">
+        <div class="card shadow-sm border-0 p-4 p-md-5 bg-white">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-3">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none text-success">Trang chủ</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Điều khoản dịch vụ</li>
+                </ol>
+            </nav>
+            <h1 class="text-primary fw-bold mb-3"><i class="fas fa-file-contract me-2"></i>Điều khoản dịch vụ</h1>
+            <p class="text-muted small">Cập nhật lần cuối: Tháng 03/2026</p>
+            <hr class="my-4">
+            <p>Chào mừng bạn đến với cổng thông tin việc làm <strong>CTJob</strong>. Khi truy cập và sử dụng website của chúng tôi, bạn đồng ý tuân thủ các điều khoản dịch vụ sau đây:</p>
+            <h5 class="fw-bold mt-4 text-dark">1. Tài khoản người dùng</h5>
+            <p>Bạn chịu trách nhiệm bảo mật thông tin tài khoản và mật khẩu của mình. Mọi hoạt động diễn ra dưới tài khoản của bạn đều do bạn chịu trách nhiệm.</p>
+            <h5 class="fw-bold mt-4 text-dark">2. Quy định về nội dung</h5>
+            <p>Ứng viên và nhà tuyển dụng phải cung cấp thông tin trung thực, chính xác khi đăng tin tuyển dụng hoặc nộp hồ sơ xin việc. Nghiêm cấm các hành vi lừa đảo hoặc đăng tải thông tin độc hại.</p>
+            <h5 class="fw-bold mt-4 text-dark">3. Quyền hạn của CTJob</h5>
+            <p>Chúng tôi có quyền từ chối cung cấp dịch vụ hoặc khóa tài khoản vĩnh viễn đối với các trường hợp vi phạm quy định của hệ thống.</p>
+        </div>
+    </div>
+
+    <!-- Footer đồng bộ hệ thống -->
+    <footer class="bg-dark text-white text-center py-3 mt-auto">
+        <div class="container small text-white-50">&copy; 2026 CTJob. Phát triển bởi Sinh viên Lê Chí Thanh.</div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

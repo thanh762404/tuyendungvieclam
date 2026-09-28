@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ job.title }} - Chi tiết tuyển dụng</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+        }
+        .support-widget-popup {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            z-index: 1050;
+            display: none;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background: #fff;
+        }
+        .support-bubble-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1050;
+            background-color: var(--primary-color) !important;
+            border: none;
+            border-radius: 2rem;
+            padding: 10px 18px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 177, 79, 0.3);
+            transition: all 0.3s ease;
+        }
+        .support-bubble-btn:hover {
+            background-color: var(--primary-hover) !important;
+            transform: translateY(-2px);
+        }
+        .chat-widget-popup {
+            position: fixed;
+            bottom: 90px;
+            right: 20px;
+            width: 350px;
+            max-height: 520px;
+            z-index: 1060;
+            border-radius: 0.75rem;
+            overflow: hidden;
+            background: #fff;
+        }
+        .chat-messages-container {
+            height: 230px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+        }
+        .chat-message {
+            margin-bottom: 10px;
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: 1rem;
+            font-size: 0.9rem;
+        }
+        .chat-message.me {
+            background-color: var(--primary-color);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.2rem;
+        }
+        .chat-message.other {
+            background-color: #e9ecef;
+            color: #212529;
+            margin-right: auto;
+            border-bottom-left-radius: 0.2rem;
+        }
+        .chat-suggestions {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 6px 10px;
+            background: #fff;
+            border-top: 1px solid #dee2e6;
+            white-space: nowrap;
+        }
+        .chat-suggestions::-webkit-scrollbar {
+            height: 4px;
+        }
+        .chat-suggestions::-webkit-scrollbar-thumb {
+            background: #ced4da;
+            border-radius: 4px;
+        }
+        .suggestion-chip {
+            background-color: #f1f3f5;
+            color: #495057;
+            border: 1px solid #ced4da;
+            border-radius: 1rem;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .suggestion-chip:hover {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .job-detail-card {
+            border: none;
+            border-radius: 1rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Thanh điều hướng -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2 px-3 rounded-pill">Đăng nhập</a>
+                    <a href="{% url 'signup' %}" class="btn btn-light text-success btn-sm px-3 rounded-pill fw-semibold">Đăng ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Nội dung chính -->
+    <div class="container my-4">
+        <!-- Đường dẫn điều hướng breadcrumb chuẩn giống ảnh mẫu -->
+        <div class="row justify-content-center mb-3">
+            <div class="col-lg-9">
+                <nav aria-label="breadcrumb" class="breadcrumb-custom text-muted small">
+                    <a href="{% url 'home' %}">Trang chủ</a> / <span class="text-dark">Chi tiết tuyển dụng</span>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-lg-9">
+                <div class="card job-detail-card bg-white">
+                    <div class="card-body p-4 p-md-5">
+                        
+                        <!-- Tiêu đề công việc và Công ty -->
+                        <div class="mb-4">
+                            <span class="badge bg-success bg-opacity-10 text-success px-3 py-2 rounded-pill mb-3 fw-semibold">
+                                <i class="fas fa-check-circle me-1"></i> Việc làm tuyển dụng chính thức
+                            </span>
+                            <h2 class="fw-bold text-dark mb-2">{{ job.title }}</h2>
+                            <h5 class="text-muted fs-6"><i class="fas fa-building me-2 text-success"></i>{{ job.company_name }}</h5>
+                        </div>
+
+                        <!-- Các thông tin chính dạng thẻ (Badges) -->
+                        <div class="row g-3 mb-4 bg-light p-3 rounded-4 border-0">
+                            <div class="col-md-6 border-end-md">
+                                <p class="mb-1 text-muted small"><i class="fas fa-map-marker-alt text-danger me-1"></i> Địa điểm làm việc:</p>
+                                <span class="fw-bold text-dark">{{ job.location }}</span>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="mb-1 text-muted small"><i class="fas fa-money-bill-wave text-success me-1"></i> Mức lương:</p>
+                                <span class="fw-bold text-danger fs-5">{{ job.salary }}</span>
+                            </div>
+                        </div>
+
+                        <hr class="my-4 text-muted opacity-25">
+
+                        <!-- Mô tả chi tiết -->
+                        <div class="mb-5">
+                            <h4 class="fw-bold mb-3 text-dark fs-5"><i class="fas fa-file-alt me-2 text-success"></i>Mô tả công việc chi tiết</h4>
+                            <div class="text-secondary lh-lg p-3 bg-light rounded-3" style="white-space: pre-line;">
+                                {{ job.description }}
+                            </div>
+                        </div>
+
+                        <!-- Các nút hành động (đã bỏ nút quay lại ở dưới) -->
+                        <div class="d-flex justify-content-end align-items-center gap-3 mt-4 pt-3 border-top">
+                            <div>
+                                {% if user.is_authenticated %}
+                                    {% if user.is_recruiter and job.recruiter == user %}
+                                        <a href="{% url 'job_applications' job.pk %}" class="btn btn-success px-4 py-2 rounded-pill fw-semibold shadow-sm">
+                                            <i class="fas fa-users me-1"></i> Xem danh sách ứng viên
+                                        </a>
+                                    {% elif not user.is_recruiter %}
+                                        <a href="{% url 'apply_job' job.pk %}" class="btn btn-success px-4 py-2 rounded-pill fw-bold shadow-sm" style="background-color: #00b14f; border: none;">
+                                            <i class="fas fa-paper-plane me-1"></i> Ứng tuyển ngay
+                                        </a>
+                                    {% endif %}
+                                {% else %}
+                                    <a href="{% url 'login' %}" class="btn btn-success px-4 py-2 rounded-pill fw-semibold" style="background-color: #00b14f; border: none;">
+                                        Đăng nhập để ứng tuyển
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HỆ THỐNG HỖ TRỢ NỔI: CHỈ HIỂN THỊ CHO TÀI KHOẢN ỨNG VIÊN -->
+    {% if user.is_authenticated and not user.is_recruiter %}
+    <button class="btn support-bubble-btn shadow" id="toggleChatBtn" title="Hỗ trợ tuyển dụng">
+        <i class="fas fa-headset fs-4"></i>
+        <span class="support-label">Hỗ trợ</span>
+    </button>
+
+    <div class="card support-widget-popup shadow-lg border-0" id="chatPopupBox">
+        <div class="card-header text-white p-3 border-0" style="background-color: var(--primary-color);">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h6 class="mb-1 fw-bold"><i class="fas fa-headset me-2"></i>Trung tâm hỗ trợ ứng viên</h6>
+                    <p class="mb-0 small text-white-50">CTJob phản hồi trong vòng 24h</p>
+                </div>
+                <button type="button" class="btn-close btn-close-white" id="closeChatBtn"></button>
+            </div>
+            
+            <div class="d-flex align-items-center mt-3 bg-white text-dark p-2 rounded-3 shadow-sm">
+                <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px; font-weight: bold;">
+                    {{ job.recruiter.username|slice:":1"|upper }}
+                </div>
+                <div>
+                    <h6 class="mb-0 fs-6 fw-bold text-success">{{ job.recruiter.username }}</h6>
+                    <small class="text-muted" style="font-size: 0.75rem;">Nhà tuyển dụng công việc này</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="list-group list-group-flush py-2">
+            <a href="javascript:void(0);" class="list-group-item list-group-item-action py-2.5 d-flex align-items-center" id="openDirectChat">
+                <i class="fas fa-comments text-success fs-5 me-3"></i>
+                <div>
+                    <div class="fw-semibold text-dark">Hỏi đáp trực tiếp với NTD</div>
+                    <small class="text-muted">Nhắn câu hỏi thắc mắc về công việc</small>
+                </div>
+            </a>
+
+            <a href="tel:0368031812" class="list-group-item list-group-item-action py-2.5 d-flex align-items-center">
+                <i class="fas fa-phone-alt text-primary fs-5 me-3"></i>
+                <div>
+                    <div class="fw-semibold text-dark">Gọi điện thoại trực tiếp</div>
+                    <small class="text-muted">0368031812</small>
+                </div>
+            </a>
+
+            {% if job.contact_link %}
+            <a href="{{ job.contact_link }}" target="_blank" class="list-group-item list-group-item-action py-2.5 d-flex align-items-center">
+                <i class="fab fa-whatsapp text-success fs-5 me-3"></i>
+                <div>
+                    <div class="fw-semibold text-dark">Nhắn Zalo</div>
+                    <small class="text-muted">Mở ứng dụng Zalo trao đổi</small>
+                </div>
+            </a>
+            {% endif %}
+
+            <a href="mailto:{{ job.recruiter.email }}?subject=Hỏi về công việc: {{ job.title }}" class="list-group-item list-group-item-action py-2.5 d-flex align-items-center">
+                <i class="fas fa-envelope text-danger fs-5 me-3"></i>
+                <div>
+                    <div class="fw-semibold text-dark">Liên hệ qua Email</div>
+                    <small class="text-muted">{{ job.recruiter.email }}</small>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="card chat-widget-popup shadow-lg border-0" id="miniChatBox" style="display: none;">
+        <div class="card-header text-white d-flex justify-content-between align-items-center py-2" style="background-color: var(--primary-color);">
+            <h6 class="mb-0"><i class="fas fa-comments me-2"></i>Chat với: {{ job.recruiter.username }}</h6>
+            <button type="button" class="btn-close btn-close-white btn-sm" id="closeMiniChat"></button>
+        </div>
+        
+        <div class="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between" style="font-size: 0.8rem;">
+            <a href="tel:0368031812" class="text-decoration-none text-primary fw-semibold">
+                <i class="fas fa-phone-alt me-1"></i> Gọi: 0368031812
+            </a>
+            {% if job.contact_link %}
+            <a href="{{ job.contact_link }}" target="_blank" class="text-decoration-none text-success fw-semibold">
+                <i class="fab fa-whatsapp me-1"></i> Zalo <i class="fas fa-external-link-alt" style="font-size: 0.65rem;"></i>
+            </a>
+            {% endif %}
+        </div>
+
+        <div class="card-body chat-messages-container p-3" id="chatMessagesArea">
+            <div class="text-center text-muted small my-auto">Đang tải lịch sử trò chuyện...</div>
+        </div>
+
+        <div class="chat-suggestions">
+            <span class="suggestion-chip">Lịch phỏng vấn dự kiến khi nào ạ?</span>
+            <span class="suggestion-chip">Công việc này có yêu cầu kinh nghiệm không?</span>
+            <span class="suggestion-chip">Quy trình tuyển dụng gồm mấy vòng ạ?</span>
+            <span class="suggestion-chip">Ứng tuyển vị trí này cần chuẩn bị hồ sơ gì?</span>
+        </div>
+
+        <div class="card-footer bg-white p-2">
+            <form id="chatForm" class="input-group">
+                {% csrf_token %}
+                <input type="text" id="chatInputMessage" class="form-control form-control-sm" placeholder="Nhập tin nhắn..." autocomplete="off" required>
+                <button class="btn btn-success btn-sm" type="submit" style="background-color: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const chatHistoryUrl = "{% url 'get_job_chat_history' job.pk %}";
+        const sendChatMessageUrl = "{% url 'send_job_chat_message' job.pk %}";
+
+        const toggleChatBtn = document.getElementById('toggleChatBtn');
+        const chatPopupBox = document.getElementById('chatPopupBox');
+        const closeChatBtn = document.getElementById('closeChatBtn');
+        const openDirectChat = document.getElementById('openDirectChat');
+        const miniChatBox = document.getElementById('miniChatBox');
+        const closeMiniChat = document.getElementById('closeMiniChat');
+        const chatMessagesArea = document.getElementById('chatMessagesArea');
+        const chatForm = document.getElementById('chatForm');
+        const chatInputMessage = document.getElementById('chatInputMessage');
+
+        let isMenuOpen = false;
+
+        toggleChatBtn.addEventListener('click', function() {
+            isMenuOpen = !isMenuOpen;
+            chatPopupBox.style.display = isMenuOpen ? 'block' : 'none';
+            miniChatBox.style.display = 'none';
+        });
+
+        closeChatBtn.addEventListener('click', function() {
+            isMenuOpen = false;
+            chatPopupBox.style.display = 'none';
+        });
+
+        closeMiniChat.addEventListener('click', function() {
+            miniChatBox.style.display = 'none';
+        });
+
+        openDirectChat.addEventListener('click', function() {
+            chatPopupBox.style.display = 'none';
+            isMenuOpen = false;
+            miniChatBox.style.display = 'block';
+            fetchChatHistory();
+        });
+
+        function sendChatMessage(messageText) {
+            if (!messageText || !messageText.trim()) return;
+
+            const submitBtn = chatForm.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('message', messageText.trim());
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+
+            return fetch(sendChatMessageUrl, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                submitBtn.disabled = false;
+                if (data.status === 'success') {
+                    chatInputMessage.value = '';
+                    fetchChatHistory();
+                    return true;
+                }
+                alert(data.error || 'Có lỗi xảy ra.');
+                return false;
+            })
+            .catch(err => {
+                submitBtn.disabled = false;
+                console.error('Lỗi gửi tin nhắn:', err);
+                alert('Có lỗi khi gửi tin nhắn. Vui lòng thử lại.');
+                return false;
+            });
+        }
+
+        document.querySelectorAll('.suggestion-chip').forEach(chip => {
+            chip.addEventListener('click', function() {
+                const suggestedText = this.textContent;
+                sendChatMessage(suggestedText);
+            });
+        });
+
+        function fetchChatHistory() {
+            fetch(chatHistoryUrl)
+                .then(response => response.json())
+                .then(data => {
+                    chatMessagesArea.innerHTML = '';
+                    if (data.messages.length === 0) {
+                        chatMessagesArea.innerHTML = '<div class="text-center text-muted small py-4">Chưa có tin nhắn nào. Hãy chọn câu hỏi gợi ý phía dưới hoặc nhập tin nhắn cho nhà tuyển dụng!</div>';
+                        return;
+                    }
+                    data.messages.forEach(msg => {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = `chat-message ${msg.is_me ? 'me' : 'other'}`;
+                        messageDiv.innerHTML = `<div>${msg.message}</div><div class="text-end" style="font-size: 0.7rem; opacity: 0.7;">${msg.created_at}</div>`;
+                        chatMessagesArea.appendChild(messageDiv);
+                    });
+                    chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+                })
+                .catch(err => console.error('Lỗi tải tin nhắn:', err));
+        }
+
+        chatForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            sendChatMessage(chatInputMessage.value);
+        });
+    </script>
+    {% endif %}
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

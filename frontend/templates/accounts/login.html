@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng nhập - CTJob</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00b14f',
+                        'primary-hover': '#009543',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+    
+    <div class="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md border border-gray-100">
+        <!-- Logo / Tiêu đề -->
+        <div class="text-center mb-6">
+            <a href="{% url 'home' %}" class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full shadow-md mb-2 text-xl">
+                <i class="fas fa-briefcase"></i>
+            </a>
+            <h2 class="text-2xl font-bold text-gray-800">Đăng nhập hệ thống</h2>
+            <p class="text-sm text-gray-500 mt-1">Chào mừng bạn quay trở lại với CTJob</p>
+        </div>
+
+        <div class="relative mb-5">
+            <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-gray-200"></div>
+            </div>
+            <div class="relative flex justify-center text-xs uppercase">
+                <span class="bg-white px-3 text-gray-400">tiếp tục với đăng nhập</span>
+            </div>
+        </div>
+
+        <!-- Form đăng nhập -->
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 mb-3">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <!-- Django Form Fields -->
+            <div class="django-form-fields space-y-3">
+                {{ form.as_p }}
+            </div>
+
+            <button type="submit" class="w-full bg-primary text-white py-3 rounded-full hover:bg-primary-hover font-semibold transition duration-200 shadow-sm">
+                Đăng nhập
+            </button>
+        </form>
+
+        <!-- Link đăng ký & Trang chủ -->
+        <div class="text-center mt-6 space-y-2">
+            <p class="text-sm text-gray-600">
+                Chưa có tài khoản? <a href="{% url 'signup' %}" class="text-primary font-semibold hover:underline">Đăng ký ngay</a>
+            </p>
+            <div>
+                <a href="{% url 'home' %}" class="text-xs text-gray-400 hover:text-gray-600 transition">
+                    <i class="fas fa-arrow-left mr-1"></i> Quay lại trang chủ
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script tự động áp dụng class Tailwind cho các input của Django -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const inputs = document.querySelectorAll("input, select, textarea");
+            inputs.forEach(input => {
+                input.classList.add(
+                    "w-full", "px-4", "py-2.5", "border", "border-gray-200", 
+                    "rounded-xl", "focus:outline-none", "focus:ring-2", 
+                    "focus:ring-[#00b14f]", "focus:border-transparent", "text-sm", "bg-gray-50/50"
+                );
+            });
+
+            const labels = document.querySelectorAll("form label");
+            labels.forEach(label => {
+                label.classList.add("block", "text-sm", "font-semibold", "text-gray-700", "mb-1.5");
+            });
+
+            const errorLists = document.querySelectorAll(".errorlist");
+            errorLists.forEach(ul => {
+                ul.classList.add("text-xs", "text-red-500", "mt-1", "list-disc", "list-inside", "space-y-1");
+            });
+        });
+    </script>
+</body>
+</html>

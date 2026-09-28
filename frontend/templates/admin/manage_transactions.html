@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Giao dịch Gói cước - CTJob Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary-color: #00b14f; }
+        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar-custom { background-color: var(--primary-color) !important; }
+        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
+        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
+        .proof-thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #dee2e6;
+            transition: transform 0.2s;
+        }
+        .proof-thumb:hover {
+            transform: scale(1.08);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4 text-white text-decoration-none d-flex align-items-center" href="{% url 'custom_admin_dashboard' %}">
+                <i class="fas fa-briefcase me-2"></i>CTJob <span class="text-warning ms-1">★</span> - Admin
+            </a>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>{{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 mb-4">
+                <div class="p-3 sidebar shadow-sm">
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9">
+                <!-- Thẻ hiển thị tổng doanh thu đã duyệt -->
+                <div class="alert alert-success d-flex justify-content-between align-items-center mb-4 rounded-4 shadow-sm bg-white border-0 py-3 px-4">
+                    <div>
+                        <h5 class="fw-bold mb-1 text-dark"><i class="fas fa-wallet text-success me-2"></i>Tổng doanh thu hệ thống</h5>
+                        <p class="mb-0 text-muted small">Được tính từ tất cả các gói cước đã được nhà tuyển dụng thanh toán và duyệt thành công.</p>
+                    </div>
+                    <div class="fs-4 fw-bold text-success">
+                        <span class="money">{{ total_approved_amount|floatformat:0 }}</span> VNĐ
+                    </div>
+                </div>
+
+                <!-- Phần chọn tháng để xem doanh thu riêng -->
+                <div class="card shadow-sm border-0 rounded-4 mb-4">
+                    <div class="card-body p-4">
+                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-chart-bar text-success me-2"></i>Tra cứu doanh thu theo tháng</h5>
+                        <form method="GET" action="" class="row g-3 align-items-center">
+                            <!-- Giữ lại trạng thái lọc cũ nếu có -->
+                            {% if status_filter %}
+                                <input type="hidden" name="status" value="{{ status_filter }}">
+                            {% endif %}
+                            <div class="col-md-8">
+                                <select name="month" class="form-select bg-light">
+                                    <option value="">-- Chọn tháng/năm cần xem doanh thu --</option>
+                                    {% for m in available_months %}
+                                        <option value="{{ m|date:'Y-m' }}" {% if selected_month == m|date:'Y-m' %}selected{% endif %}>
+                                            Tháng {{ m|date:'m/Y' }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-success w-100 fw-semibold">
+                                    <i class="fas fa-search me-1"></i> Xem doanh thu
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Hiển thị kết quả khi người dùng đã chọn tháng -->
+                        {% if selected_month %}
+                            <div class="mt-3 p-3 bg-light rounded-3 d-flex justify-content-between align-items-center">
+                                <span class="fw-semibold text-secondary">Doanh thu tháng {{ selected_month|slice:"5:7" }}/{{ selected_month|slice:"0:4" }}:</span>
+                                <span class="fs-5 fw-bold text-success"><span class="money">{{ selected_month_revenue|floatformat:0 }}</span> VNĐ</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Bảng lịch sử giao dịch chính -->
+                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                        <div>
+                            <h3 class="fw-bold mb-1"><i class="fas fa-history text-success me-2"></i>Lịch sử giao dịch mua gói cước</h3>
+                            <p class="text-muted small mb-0">Kiểm tra biên lai chuyển khoản, duyệt hoặc từ chối các khoản thanh toán từ nhà tuyển dụng</p>
+                        </div>
+                        <span class="badge bg-success px-3 py-2 rounded-pill">Tổng số: {{ page_obj.paginator.count }} giao dịch</span>
+                    </div>
+
+                    <!-- Lọc theo trạng thái -->
+                    <form method="GET" action="" class="row g-2 mb-4">
+                        {% if selected_month %}
+                            <input type="hidden" name="month" value="{{ selected_month }}">
+                        {% endif %}
+                        <div class="col-md-10">
+                            <select name="status" class="form-select bg-light">
+                                <option value="">-- Tất cả trạng thái giao dịch --</option>
+                                {% for key, label in status_choices %}
+                                    <option value="{{ key }}" {% if status_filter == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                        </div>
+                    </form>
+
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="py-3">Mã GD</th>
+                                    <th class="py-3">Nhà tuyển dụng</th>
+                                    <th class="py-3">Gói dịch vụ</th>
+                                    <th class="py-3">Số tiền</th>
+                                    <th class="py-3 text-center">Biên lai CK</th>
+                                    <th class="py-3">Trạng thái</th>
+                                    <th class="py-3 text-center">Thao tác Admin</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for tx in page_obj %}
+                                <tr>
+                                    <td><span class="text-muted fw-semibold">#{{ tx.id }}</span></td>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ tx.recruiter.username }}</div>
+                                        <small class="text-muted">{{ tx.recruiter.email }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold text-success">{{ tx.package.name }}</div>
+                                        <small class="text-muted">Thời hạn: {{ tx.package.duration_days }} ngày</small>
+                                    </td>
+                                    <td><span class="fw-bold text-danger"><span class="money">{{ tx.package.price|floatformat:0 }}</span> VNĐ</span></td>
+                                    
+                                    <!-- Cột hiển thị ảnh biên lai chuyển khoản -->
+                                    <td class="text-center">
+                                        {% if tx.proof_image %}
+                                            <img src="{{ tx.proof_image.url }}" alt="Biên lai" class="proof-thumb shadow-sm" data-bs-toggle="modal" data-bs-target="#imageModal{{ tx.id }}" title="Bấm để phóng to">
+                                            
+                                            <!-- Modal phóng to ảnh biên lai -->
+                                            <div class="modal fade" id="imageModal{{ tx.id }}" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog modal-dialog-centered modal-lg">
+                                                    <div class="modal-content">
+                                                        <div class="modal-header">
+                                                            <h5 class="modal-title">Biên lai GD #{{ tx.id }} - {{ tx.recruiter.username }}</h5>
+                                                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                        </div>
+                                                        <div class="modal-body text-center bg-light">
+                                                            <img src="{{ tx.proof_image.url }}" class="img-fluid rounded shadow-sm" style="max-height: 75vh;" alt="Biên lai chi tiết">
+                                                        </div>
+                                                        <div class="modal-footer">
+                                                            <a href="{{ tx.proof_image.url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                                                                <i class="fas fa-external-link-alt me-1"></i> Mở tab mới
+                                                            </a>
+                                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted small fst-italic">Không có ảnh</span>
+                                        {% endif %}
+                                    </td>
+
+                                    <td>
+                                        {% if tx.status == 'approved' %}
+                                            <span class="badge bg-success">Đã kích hoạt</span>
+                                        {% elif tx.status == 'rejected' %}
+                                            <span class="badge bg-danger">Đã từ chối</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Chờ xác nhận</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-2">
+                                            {% if tx.status != 'approved' %}
+                                                <form action="{% url 'admin_approve_transaction' tx.id %}" method="POST" style="display:inline;">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3">
+                                                        <i class="fas fa-check me-1"></i> Duyệt
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                            {% if tx.status != 'rejected' %}
+                                                <form action="{% url 'admin_reject_transaction' tx.id %}" method="POST" style="display:inline;">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                                                        <i class="fas fa-times me-1"></i> Từ chối
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="7" class="text-center text-muted py-5">
+                                        <i class="fas fa-receipt fa-2x mb-3 text-black-50"></i>
+                                        <p class="mb-0">Chưa có giao dịch mua gói cước nào.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Tự động định dạng tất cả các số tiền thành dạng có dấu chấm phân cách hàng nghìn (VD: 280000 -> 280.000)
+        document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll(".money").forEach(function(el) {
+                let value = el.textContent.trim();
+                let number = parseInt(value.replace(/\D/g, ""), 10);
+                if (!isNaN(number)) {
+                    el.textContent = number.toLocaleString("vi-VN");
+                }
+            });
+        });
+    </script>
+</body>
+</html>

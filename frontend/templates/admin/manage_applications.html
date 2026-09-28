@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Quản lý Đơn ứng tuyển - CTJob Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root { --primary-color: #00b14f; }
+        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar-custom { background-color: var(--primary-color) !important; }
+        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
+        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
+        .modal-content { border-radius: 1rem; border: none; }
+        .job-group-card { border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #fff; margin-bottom: 1rem; box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); overflow: hidden; }
+        .job-header { background-color: #f8f9fa; padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; transition: background-color 0.2s; }
+        .job-header:hover { background-color: #f1f3f5; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4 text-white text-decoration-none d-flex align-items-center" href="{% url 'custom_admin_dashboard' %}">
+                <i class="fas fa-briefcase me-2"></i>CTJob <span class="text-warning ms-1">★</span> - Admin
+            </a>
+        </div>
+    </nav>
+
+    <div class="container my-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="fas fa-info-circle me-2"></i>{{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 mb-4">
+                <div class="p-3 sidebar shadow-sm">
+                    <ul class="nav flex-column">
+                        <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        <li class="nav-item"><a class="nav-link active" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9">
+                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+                        <div>
+                            <h3 class="fw-bold mb-1"><i class="fas fa-file-alt text-success me-2"></i>Quản lý đơn ứng tuyển theo bài đăng</h3>
+                            <p class="text-muted small mb-0">Mỗi bài tuyển dụng hiển thị 1 lần, bấm vào tiêu đề để xem danh sách ứng viên</p>
+                        </div>
+                        <span class="badge bg-success px-3 py-2 rounded-pill">Tổng số đơn: {{ total_count }}</span>
+                    </div>
+
+                    <!-- Thanh tìm kiếm và lọc -->
+                    <form method="GET" action="" class="row g-2 mb-4">
+                        <div class="col-md-7">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                                <input type="text" name="q" class="form-control border-start-0 bg-light" placeholder="Tìm tên ứng viên hoặc tên công việc..." value="{{ request.GET.q }}">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="status" class="form-select bg-light">
+                                <option value="">-- Tất cả trạng thái --</option>
+                                <option value="Pending" {% if request.GET.status == 'Pending' %}selected{% endif %}>Chờ duyệt</option>
+                                <option value="Approved" {% if request.GET.status == 'Approved' %}selected{% endif %}>Đã duyệt</option>
+                                <option value="Rejected" {% if request.GET.status == 'Rejected' %}selected{% endif %}>Từ chối</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                        </div>
+                    </form>
+
+                    <!-- Danh sách các bài đăng (Mỗi bài độc lập 1 lần duy nhất) -->
+                    <div class="application-groups">
+                        {% for job_item in jobs_with_applications %}
+                        <div class="job-group-card">
+                            <!-- Tiêu đề bài đăng (Bấm vào để xổ danh sách ứng viên) -->
+                            <div class="job-header d-flex justify-content-between align-items-center flex-wrap gap-2" data-bs-toggle="collapse" data-bs-target="#jobCollapse{{ job_item.id }}" role="button" aria-expanded="false">
+                                <div>
+                                    <h6 class="fw-bold text-dark mb-1">
+                                        <i class="fas fa-briefcase text-success me-2"></i>{{ job_item.title }}
+                                    </h6>
+                                    <small class="text-muted">Công ty: {{ job_item.company_name|default:"Không rõ" }} | Mã tin: #{{ job_item.id }}</small>
+                                </div>
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="badge bg-primary px-3 py-2 rounded-pill">
+                                        <i class="fas fa-users me-1"></i>{{ job_item.total_apps }} ứng viên nộp đơn
+                                    </span>
+                                    <i class="fas fa-chevron-down text-muted small ms-1"></i>
+                                </div>
+                            </div>
+
+                            <!-- Danh sách ứng viên nộp vào bài này (Thu gọn mặc định) -->
+                            <div class="collapse" id="jobCollapse{{ job_item.id }}">
+                                <div class="table-responsive mb-0">
+                                    <table class="table table-hover align-middle mb-0">
+                                        <thead class="table-light text-muted small">
+                                            <tr>
+                                                <th class="ps-4">ID Đơn</th>
+                                                <th>Ứng viên</th>
+                                                <th>Trạng thái</th>
+                                                <th>Hồ sơ CV</th>
+                                                <th class="text-center pe-4">Thao tác</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in applications %}
+                                                {% if item.job_id == job_item.id %}
+                                                <tr>
+                                                    <td class="ps-4"><span class="text-muted fw-semibold">#{{ item.id }}</span></td>
+                                                    <td>
+                                                        <div class="fw-semibold text-dark">{{ item.candidate.username }}</div>
+                                                        <small class="text-muted">{{ item.candidate.email }}</small>
+                                                    </td>
+                                                    <td>
+                                                        {% if item.status == 'Approved' %}
+                                                            <span class="badge bg-success">Đã duyệt</span>
+                                                        {% elif item.status == 'Rejected' %}
+                                                            <span class="badge bg-danger">Từ chối</span>
+                                                        {% else %}
+                                                            <span class="badge bg-warning text-dark">Chờ duyệt</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td>
+                                                        {% if item.cv_file %}
+                                                            <a href="{{ item.cv_file.url }}" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                                                <i class="fas fa-download me-1"></i> Xem CV
+                                                            </a>
+                                                        {% else %}
+                                                            <span class="text-muted small">Không có CV</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center pe-4">
+                                                        <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#deleteAppModal{{ item.id }}">
+                                                            <i class="fas fa-trash-alt me-1"></i> Xóa
+                                                        </button>
+
+                                                        <!-- Modal Xóa -->
+                                                        <div class="modal fade" id="deleteAppModal{{ item.id }}" tabindex="-1" aria-hidden="true">
+                                                            <div class="modal-dialog modal-dialog-centered">
+                                                                <div class="modal-content shadow-lg p-3">
+                                                                    <div class="modal-header border-0 pb-0">
+                                                                        <h5 class="modal-title fw-bold text-danger">
+                                                                            <i class="fas fa-exclamation-triangle me-2"></i>Xác nhận xóa đơn ứng tuyển
+                                                                        </h5>
+                                                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                                    </div>
+                                                                    <div class="modal-body text-start py-3">
+                                                                        <p class="text-secondary mb-1">Bạn có chắc chắn muốn xóa đơn ứng tuyển này không?</p>
+                                                                        <div class="p-3 bg-light rounded-3 mt-2 border">
+                                                                            <strong>Công việc:</strong> <span class="text-dark">{{ item.job.title }}</span><br>
+                                                                            <strong class="small">Ứng viên:</strong> <span class="text-muted small">{{ item.candidate.username }}</span><br>
+                                                                            <small class="text-muted">Mã đơn: #{{ item.id }}</small>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div class="modal-footer border-0 pt-0">
+                                                                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
+                                                                        <form action="{% url 'admin_delete_application' item.id %}" method="POST" style="display:inline;">
+                                                                            {% csrf_token %}
+                                                                            <button type="submit" class="btn btn-danger rounded-pill px-4">Xác nhận xóa</button>
+                                                                        </form>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-folder-open fa-3x mb-3 text-black-50"></i>
+                            <p class="mb-0">Chưa có đơn ứng tuyển nào trên hệ thống.</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

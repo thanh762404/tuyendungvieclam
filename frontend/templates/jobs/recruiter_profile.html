@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4 mb-5" style="max-width: 700px;">
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-4">
+            <h3 class="mb-4 text-primary font-weight-bold">Quản lý Thông tin Công ty & Logo</h3>
+            
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-success">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <!-- Hiển thị logo hiện tại nếu có -->
+                <div class="form-group mb-3 text-center">
+                    {% if profile.company_logo %}
+                        <div class="mb-2">
+                            <img src="{{ profile.company_logo.url }}" alt="Current Logo" class="img-thumbnail" style="width: 120px; height: 120px; object-fit: contain;">
+                        </div>
+                        <small class="text-muted">Logo hiện tại của công ty</small>
+                    {% else %}
+                        <div class="alert alert-secondary py-2">Chưa có logo nào được tải lên.</div>
+                    {% endif %}
+                </div>
+
+                {{ form.as_p }}
+
+                <button type="submit" class="btn btn-primary btn-block mt-3 px-4 py-2">Lưu thay đổi</button>
+                <a href="{% url 'recruiter_job_list' %}" class="btn btn-secondary mt-3 ml-2 py-2">Quay lại quản lý tin</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

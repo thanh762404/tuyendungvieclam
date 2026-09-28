@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Cập nhật hồ sơ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+        }
+        .text-custom-primary {
+            color: var(--primary-color) !important;
+        }
+        .btn-success-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        .btn-success-custom:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 0.25rem rgba(0, 177, 79, 0.25) !important;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+    <!-- Thanh điều hướng đồng bộ -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2 px-3 rounded-pill">Đăng nhập</a>
+                    <a href="{% url 'signup' %}" class="btn btn-light text-success btn-sm px-3 rounded-pill fw-semibold">Đăng ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5" style="max-width: 750px;">
+        <!-- Đường dẫn điều hướng breadcrumb -->
+        <div class="row justify-content-center mb-3">
+            <div class="col-12">
+                <nav aria-label="breadcrumb" class="breadcrumb-custom text-muted small">
+                    <a href="{% url 'home' %}">Trang chủ</a> / <a href="{% url 'profile' %}">Hồ sơ cá nhân</a> / <span class="text-dark">Chỉnh sửa hồ sơ</span>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-12 bg-white p-4 p-md-5 rounded-4 shadow-sm">
+                
+                <h3 class="mb-4 text-custom-primary fw-bold text-center">
+                    {% if is_recruiter %}
+                        <i class="fas fa-building me-2"></i>Chỉnh sửa thông tin công ty
+                    {% else %}
+                        <i class="fas fa-user-edit me-2"></i>Chỉnh sửa thông tin cá nhân
+                    {% endif %}
+                </h3>
+
+                {% if u_form.errors or p_form.errors %}
+                <div class="alert alert-danger rounded-3">
+                    <strong>Lỗi!</strong> Vui lòng kiểm tra lại thông tin bên dưới:
+                    {{ u_form.errors }}
+                    {{ p_form.errors }}
+                </div>
+                {% endif %}
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-secondary">Tên đăng nhập:</label>
+                        {{ u_form.username }}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold text-secondary">Email:</label>
+                        {{ u_form.email }}
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-6 mb-3 mb-md-0">
+                            <label class="form-label fw-semibold text-secondary">Họ:</label>
+                            {{ u_form.first_name }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold text-secondary">Tên:</label>
+                            {{ u_form.last_name }}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <!-- PHẦN DÀNH RIÊNG CHO NHÀ TUYỂN DỤNG -->
+                    {% if is_recruiter %}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Tên công ty:</label>
+                            {{ p_form.company_name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Số điện thoại:</label>
+                            {{ p_form.phone }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Địa chỉ công ty:</label>
+                            {{ p_form.address }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Website:</label>
+                            {{ p_form.website }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Mô tả công ty:</label>
+                            {{ p_form.description }}
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-secondary">Logo công ty:</label>
+                            {% if user.companyprofile.company_logo %}
+                            <div class="mb-2">
+                                <img src="{{ user.companyprofile.company_logo.url }}" alt="Logo" class="rounded border shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
+                            </div>
+                            {% endif %}
+                            {{ p_form.company_logo }}
+                        </div>
+
+                    <!-- PHẦN DÀNH RIÊNG CHO ỨNG VIÊN -->
+                    {% else %}
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Số điện thoại:</label>
+                            {{ p_form.phone }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Ngành đào tạo:</label>
+                            {{ p_form.major }}
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Kỹ năng:</label>
+                            <div class="skill-trigger form-control d-flex justify-content-between align-items-center" tabindex="0" role="button" aria-expanded="false" style="cursor: pointer;">
+                                <span class="skill-trigger-text">Chọn kỹ năng phù hợp</span>
+                                <i class="fas fa-chevron-down small text-secondary"></i>
+                            </div>
+                            <div class="skill-dropdown-panel border rounded-3 bg-light p-3 mt-2" style="display:none;">
+                                <div class="row g-2 skill-list" id="skill-list">
+                                    <!-- Công nghệ thông tin -->
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="Python"><label><input type="checkbox" class="skill-checkbox" value="Python">Python</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="Java"><label><input type="checkbox" class="skill-checkbox" value="Java">Java</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="ReactJS"><label><input type="checkbox" class="skill-checkbox" value="ReactJS">ReactJS</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="MySQL"><label><input type="checkbox" class="skill-checkbox" value="MySQL">MySQL</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="Django"><label><input type="checkbox" class="skill-checkbox" value="Django">Django</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="HTML/CSS"><label><input type="checkbox" class="skill-checkbox" value="HTML/CSS">HTML/CSS</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="Node.js"><label><input type="checkbox" class="skill-checkbox" value="Node.js">Node.js</label></div>
+                                    <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="Tester"><label><input type="checkbox" class="skill-checkbox" value="Tester">Tester</label></div>
+
+                                    <!-- Quản trị kinh doanh -->
+                                    <div class="col-6 skill-option" data-major="Quản trị kinh doanh" data-skill="Quản lý dự án"><label><input type="checkbox" class="skill-checkbox" value="Quản lý dự án">Quản lý dự án</label></div>
+                                    <div class="col-6 skill-option" data-major="Quản trị kinh doanh" data-skill="Quản lý nhân sự"><label><input type="checkbox" class="skill-checkbox" value="Quản lý nhân sự">Quản lý nhân sự</label></div>
+                                    <div class="col-6 skill-option" data-major="Quản trị kinh doanh" data-skill="Phân tích kinh doanh"><label><input type="checkbox" class="skill-checkbox" value="Phân tích kinh doanh">Phân tích kinh doanh</label></div>
+                                    <div class="col-6 skill-option" data-major="Quản trị kinh doanh" data-skill="Microsoft Excel"><label><input type="checkbox" class="skill-checkbox" value="Microsoft Excel">Microsoft Excel</label></div>
+
+                                    <!-- Thiết kế đồ họa -->
+                                    <div class="col-6 skill-option" data-major="Thiết kế đồ họa" data-skill="Photoshop"><label><input type="checkbox" class="skill-checkbox" value="Photoshop">Photoshop</label></div>
+                                    <div class="col-6 skill-option" data-major="Thiết kế đồ họa" data-skill="UI/UX Design"><label><input type="checkbox" class="skill-checkbox" value="UI/UX Design">UI/UX Design</label></div>
+                                    <div class="col-6 skill-option" data-major="Thiết kế đồ họa" data-skill="Figma"><label><input type="checkbox" class="skill-checkbox" value="Figma">Figma</label></div>
+
+                                    <!-- Logistics -->
+                                    <div class="col-6 skill-option" data-major="Logistics" data-skill="Quản lý kho"><label><input type="checkbox" class="skill-checkbox" value="Quản lý kho">Quản lý kho</label></div>
+                                    <div class="col-6 skill-option" data-major="Logistics" data-skill="Quản lý chuỗi cung ứng"><label><input type="checkbox" class="skill-checkbox" value="Quản lý chuỗi cung ứng">Quản lý chuỗi cung ứng</label></div>
+                                    <div class="col-6 skill-option" data-major="Logistics" data-skill="Xuất nhập khẩu"><label><input type="checkbox" class="skill-checkbox" value="Xuất nhập khẩu">Xuất nhập khẩu</label></div>
+                                    <div class="col-6 skill-option" data-major="Logistics" data-skill="Microsoft Excel"><label><input type="checkbox" class="skill-checkbox" value="Microsoft Excel">Microsoft Excel</label></div>
+
+                                    <!-- Ngôn ngữ Anh -->
+                                    <div class="col-6 skill-option" data-major="Ngôn ngữ Anh" data-skill="English"><label><input type="checkbox" class="skill-checkbox" value="English">English</label></div>
+                                    <div class="col-6 skill-option" data-major="Ngôn ngữ Anh" data-skill="Translation"><label><input type="checkbox" class="skill-checkbox" value="Translation">Translation</label></div>
+                                    <div class="col-6 skill-option" data-major="Ngôn ngữ Anh" data-skill="IELTS"><label><input type="checkbox" class="skill-checkbox" value="IELTS">IELTS</label></div>
+                                    <div class="col-6 skill-option" data-major="Ngôn ngữ Anh" data-skill="TOEIC"><label><input type="checkbox" class="skill-checkbox" value="TOEIC">TOEIC</label></div>
+
+                                    <!-- Tài chính – Ngân hàng -->
+                                    <div class="col-6 skill-option" data-major="Tài chính – Ngân hàng" data-skill="Nghiệp vụ ngân hàng"><label><input type="checkbox" class="skill-checkbox" value="Nghiệp vụ ngân hàng">Nghiệp vụ ngân hàng</label></div>
+                                    <div class="col-6 skill-option" data-major="Tài chính – Ngân hàng" data-skill="Tín dụng ngân hàng"><label><input type="checkbox" class="skill-checkbox" value="Tín dụng ngân hàng">Tín dụng ngân hàng</label></div>
+                                    <div class="col-6 skill-option" data-major="Tài chính – Ngân hàng" data-skill="Kế toán ngân hàng"><label><input type="checkbox" class="skill-checkbox" value="Kế toán ngân hàng">Kế toán ngân hàng</label></div>
+                                    <div class="col-6 skill-option" data-major="Tài chính – Ngân hàng" data-skill="Chăm sóc khách hàng"><label><input type="checkbox" class="skill-checkbox" value="Chăm sóc khách hàng">Chăm sóc khách hàng</label></div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="id_skills" name="skills" value="{{ p_form.skills.value|default_if_none:'' }}">
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Giới thiệu bản thân:</label>
+                            {{ p_form.bio }}
+                        </div>
+
+                        <!-- Bổ sung phần cập nhật ảnh đại diện (avatar) cho ứng viên -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-secondary">Ảnh đại diện:</label>
+                            {% if user.profile.avatar %}
+                            <div class="mb-2">
+                                <img src="{{ user.profile.avatar.url }}" alt="Avatar" class="rounded-circle border shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
+                            </div>
+                            {% endif %}
+                            {{ p_form.avatar }}
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold text-secondary">File CV hiện tại:</label>
+                            {% if user.profile.cv_file %}
+                            <div class="mb-2">
+                                <a href="{{ user.profile.cv_file.url }}" target="_blank"
+                                    class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
+                                    <i class="fas fa-file-pdf text-danger me-1"></i> Xem CV hiện tại
+                                </a>
+                            </div>
+                            {% else %}
+                            <p class="text-muted small mb-2 fst-italic">Chưa có file CV nào được tải lên.</p>
+                            {% endif %}
+
+                            <label class="form-label text-muted small mt-2">Tải lên CV mới (nếu muốn thay thế):</label>
+                            {{ p_form.cv_file }}
+                        </div>
+                    {% endif %}
+
+                    <div class="d-flex justify-content-end align-items-center mt-4 pt-2">
+                        <button type="submit" class="btn btn-success-custom rounded-pill px-4 fw-semibold shadow-sm">
+                            <i class="fas fa-save me-1"></i> Lưu thay đổi
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tự động thêm class form-control của bootstrap vào các trường input/textarea -->
+    <script>
+        document.querySelectorAll('input, textarea, select').forEach((element) => {
+            if (!element.classList.contains('form-control') && !element.classList.contains('form-select') && element.type !== 'file' && element.type !== 'checkbox') {
+                if (element.tagName === 'SELECT') {
+                    element.classList.add('form-select');
+                } else {
+                    element.classList.add('form-control');
+                }
+            }
+            if (element.type === 'file') {
+                element.classList.add('form-control');
+            }
+        });
+
+        const majorInputProfile = document.querySelector('#id_major');
+        const skillsInputProfile = document.querySelector('#id_skills');
+        const skillCheckboxesProfile = document.querySelectorAll('.skill-checkbox');
+        const skillOptionsProfile = document.querySelectorAll('.skill-option');
+        const skillTriggerProfile = document.querySelector('.skill-trigger');
+        const skillDropdownProfile = document.querySelector('.skill-dropdown-panel');
+        const skillTriggerTextProfile = document.querySelector('.skill-trigger-text');
+
+        const majorSkillsMapProfile = {
+            'Công nghệ thông tin': ['Python', 'Java', 'ReactJS', 'MySQL', 'Django', 'HTML/CSS', 'Node.js', 'Tester'],
+            'Quản trị kinh doanh': ['Quản lý dự án', 'Quản lý nhân sự', 'Phân tích kinh doanh', 'Microsoft Excel'],
+            'Thiết kế đồ họa': ['Photoshop', 'UI/UX Design', 'Figma'],
+            'Logistics': ['Quản lý kho', 'Quản lý chuỗi cung ứng', 'Xuất nhập khẩu', 'Microsoft Excel'],
+            'Ngôn ngữ Anh': ['English', 'Translation', 'IELTS', 'TOEIC'],
+            'Tài chính – Ngân hàng': ['Nghiệp vụ ngân hàng', 'Tín dụng ngân hàng', 'Kế toán ngân hàng', 'Chăm sóc khách hàng']
+        };
+
+        function syncProfileCheckboxes() {
+            if (!skillsInputProfile) return;
+            const currentVal = skillsInputProfile.value;
+            const skillsArray = currentVal ? currentVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+            skillCheckboxesProfile.forEach(chk => {
+                chk.checked = skillsArray.includes(chk.value);
+            });
+            if (skillTriggerTextProfile) {
+                skillTriggerTextProfile.textContent = skillsArray.length ? skillsArray.join(', ') : 'Chọn kỹ năng phù hợp';
+            }
+        }
+
+        function refreshProfileSkillsByMajor() {
+            const currentMajor = majorInputProfile ? majorInputProfile.value : '';
+            const allowedSkills = majorSkillsMapProfile[currentMajor] || [];
+
+            skillOptionsProfile.forEach(option => {
+                const skill = option.dataset.skill;
+                const optionMajor = option.dataset.major;
+                
+                // Kiểm tra xem kỹ năng có thuộc đúng ngành được chọn không
+                const isAllowed = (!currentMajor || optionMajor === currentMajor) && (allowedSkills.includes(skill));
+                
+                option.style.display = isAllowed ? 'block' : 'none';
+                const input = option.querySelector('input');
+                if (input) {
+                    input.disabled = !isAllowed;
+                    if (!isAllowed) input.checked = false;
+                }
+            });
+
+            const selectedSkills = [];
+            skillCheckboxesProfile.forEach(chk => {
+                if (chk.checked && !chk.disabled) selectedSkills.push(chk.value);
+            });
+            if (skillsInputProfile) {
+                skillsInputProfile.value = selectedSkills.join(', ');
+            }
+            if (skillTriggerTextProfile) {
+                skillTriggerTextProfile.textContent = selectedSkills.length ? selectedSkills.join(', ') : 'Chọn kỹ năng phù hợp';
+            }
+        }
+
+        if (skillTriggerProfile && skillDropdownProfile) {
+            skillTriggerProfile.addEventListener('click', function (e) {
+                e.stopPropagation();
+                const isOpen = skillDropdownProfile.style.display === 'block';
+                skillDropdownProfile.style.display = isOpen ? 'none' : 'block';
+                skillTriggerProfile.setAttribute('aria-expanded', String(!isOpen));
+            });
+
+            // Ẩn dropdown khi click ra ngoài
+            document.addEventListener('click', function (e) {
+                if (!skillDropdownProfile.contains(e.target) && !skillTriggerProfile.contains(e.target)) {
+                    skillDropdownProfile.style.display = 'none';
+                    skillTriggerProfile.setAttribute('aria-expanded', 'false');
+                }
+            });
+        }
+
+        skillCheckboxesProfile.forEach(chk => {
+            chk.addEventListener('change', function () {
+                const selectedSkills = [];
+                skillCheckboxesProfile.forEach(item => {
+                    if (item.checked && !item.disabled) selectedSkills.push(item.value);
+                });
+                if (skillsInputProfile) skillsInputProfile.value = selectedSkills.join(', ');
+                if (skillTriggerTextProfile) {
+                    skillTriggerTextProfile.textContent = selectedSkills.length ? selectedSkills.join(', ') : 'Chọn kỹ năng phù hợp';
+                }
+            });
+        });
+
+        if (majorInputProfile) {
+            majorInputProfile.addEventListener('change', function() {
+                // Reset kỹ năng đã chọn cũ khi thay đổi ngành mới
+                if (skillsInputProfile) skillsInputProfile.value = '';
+                skillCheckboxesProfile.forEach(chk => chk.checked = false);
+                refreshProfileSkillsByMajor();
+            });
+        }
+
+        syncProfileCheckboxes();
+        refreshProfileSkillsByMajor();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

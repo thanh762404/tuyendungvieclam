@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Việc làm đã ứng tuyển</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+        }
+        .text-custom-primary {
+            color: var(--primary-color) !important;
+        }
+        .table-custom-header {
+            background-color: rgba(0, 177, 79, 0.1) !important;
+            color: #00863b;
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    <!-- Thanh điều hướng đồng bộ (Đã bỏ đồng hồ thời gian thực ở góc) -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2 px-3 rounded-pill">Đăng nhập</a>
+                    <a href="{% url 'signup' %}" class="btn btn-light text-success btn-sm px-3 rounded-pill fw-semibold">Đăng ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <!-- Đường dẫn điều hướng breadcrumb -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <nav aria-label="breadcrumb" class="breadcrumb-custom text-muted small">
+                    <a href="{% url 'home' %}">Trang chủ</a> / <span class="text-dark">Việc làm đã ứng tuyển</span>
+                </nav>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="fw-bold mb-0 text-dark"><i class="fas fa-paper-plane text-custom-primary me-2"></i>Việc làm bạn đã ứng tuyển</h2>
+        </div>
+        
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden bg-white">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-custom-header">
+                        <tr>
+                            <th style="width: 60px; text-align: center;" class="py-3">STT</th>
+                            <th class="py-3">Công việc</th>
+                            <th class="py-3">Công ty</th>
+                            <th class="py-3">Ngày nộp</th>
+                            <th class="py-3">Trạng thái đơn</th>
+                            <th class="py-3">Lịch hẹn phỏng vấn</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for app in applications %}
+                        <tr>
+                            <td class="text-center fw-bold text-muted">{{ forloop.counter }}</td>
+                            <td class="fw-bold text-dark">{{ app.job.title }}</td>
+                            <td>{{ app.job.company_name }}</td>
+                            <td>{{ app.applied_at|date:"d/m/Y H:i" }}</td>
+                            
+                            <!-- CỘT 1: TRẠNG THÁI VÀ THỜI GIAN DUYỆT Ở DƯỚI -->
+                            <td>
+                                {% if "không phù hợp" in app.interview_details|lower or "từ chối" in app.get_status_display|lower or "rejected" in app.status|lower %}
+                                    <span class="badge bg-danger rounded-pill px-3 py-2 mb-1">Từ chối</span>
+                                    <div class="text-muted small mt-1">
+                                        <i class="fas fa-clock me-1 text-secondary"></i> Từ chối lúc: {{ app.updated_at|date:"d/m/Y H:i" }}
+                                    </div>
+                                    <div class="text-danger small mt-1 bg-light p-2 rounded border border-danger-subtle">
+                                        <i class="fas fa-times-circle me-1"></i> Hồ sơ chưa phù hợp.
+                                    </div>
+                                {% else %}
+                                    <span class="badge rounded-pill px-3 py-2 {% if app.status == 'Approved' %}bg-success{% else %}bg-info text-dark{% endif %}" {% if app.status == 'Approved' %}style="background-color: #00b14f !important;"{% endif %}>
+                                        {{ app.get_status_display|default:app.status }}
+                                    </span>
+                                    
+                                    {% if app.updated_at %}
+                                        <div class="text-muted small mt-1">
+                                            <i class="fas fa-clock me-1 text-secondary"></i> Duyệt lúc: {{ app.updated_at|date:"d/m/Y H:i" }}
+                                        </div>
+                                    {% endif %}
+                                {% endif %}
+                            </td>
+
+                            <!-- CỘT 2: LỊCH HẸN PHỎNG VẤN & THÔNG BÁO -->
+                            <td>
+                                {% if app.needs_interview_reminder %}
+                                    <div class="alert alert-warning border-0 py-2 px-3 mb-2 small rounded-3 mb-2">
+                                        <i class="fas fa-bell me-1"></i> {{ app.interview_reminder_message }}
+                                    </div>
+                                {% endif %}
+
+                                {% if app.interview_details %}
+                                    <div class="text-success small fw-semibold p-2 rounded border bg-light">
+                                        <i class="fas fa-calendar-check me-1"></i> {{ app.interview_details }}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted small italic">Chưa có lịch hẹn</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center py-5 text-muted">
+                                <i class="fas fa-folder-open fs-2 mb-2 text-black-50"></i>
+                                <p class="mb-0">Bạn chưa ứng tuyển công việc nào.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

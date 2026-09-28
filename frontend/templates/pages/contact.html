@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liên hệ - CTJob</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .bg-primary { background-color: #00b14f !important; }
+        .text-primary { color: #00b14f !important; }
+        .btn-primary { background-color: #00b14f !important; border-color: #00b14f !important; }
+        .btn-primary:hover { background-color: #009543 !important; }
+        body { padding-top: 75px; }
+    </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+    <!-- Navbar cố định thương hiệu CTJob -->
+    <div class="fixed-top shadow-sm">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Nội dung chính -->
+    <div class="container my-5 flex-grow-1" style="max-width: 900px;">
+        <div class="card shadow-sm border-0 p-4 p-md-5 bg-white">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-3">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none text-success">Trang chủ</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Liên hệ</li>
+                </ol>
+            </nav>
+            <h1 class="text-primary fw-bold mb-3"><i class="fas fa-headset me-2"></i>Hỗ trợ kỹ thuật & Tài khoản</h1>
+            <p class="text-secondary">Trang này dành riêng cho việc giải đáp thắc mắc về tài khoản, lỗi hệ thống hoặc các vấn đề kỹ thuật chung.</p>
+            
+            <!-- Cảnh báo phân định rõ phạm vi hỗ trợ cho ứng viên -->
+            <div class="alert alert-warning border-0 shadow-sm py-3 mb-4" role="alert">
+                <div class="d-flex">
+                    <div class="me-3 fs-4 text-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div>
+                        <strong class="d-block mb-1 text-dark">Lưu ý quan trọng dành cho ứng viên:</strong>
+                        <p class="mb-0 small text-dark">
+                            Form này <strong>KHÔNG</strong> hỗ trợ giải quyết các vấn đề liên quan đến công việc (như: kết quả ứng tuyển, lịch phỏng vấn, lương thưởng). Các vấn đề về việc làm vui lòng chat trực tiếp với Nhà tuyển dụng.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <hr class="my-4">
+
+            <!-- HIỂN THỊ THÔNG BÁO KHI GỬI THÀNH CÔNG -->
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <h5 class="fw-bold text-dark">Thông tin liên hệ Admin</h5>
+                    <p class="mb-2"><i class="fas fa-phone-alt text-success me-2"></i><strong>Hotline:</strong> 0368031812</p>
+                    <p class="mb-2"><i class="fas fa-envelope text-success me-2"></i><strong>Email:</strong> hotroctjob@gmail.com</p>
+                    <p class="mb-2"><i class="fas fa-map-marker-alt text-success me-2"></i><strong>Địa chỉ:</strong> Đà Nẵng, Việt Nam</p>
+                    <div class="mt-4 p-3 bg-light rounded-3 border">
+                        <h6 class="fw-bold text-success small mb-2"><i class="fas fa-check-circle me-1"></i> Chúng tôi hỗ trợ:</h6>
+                        <ul class="small text-muted ps-3 mb-0">
+                            <li>Sự cố đăng nhập / Quên mật khẩu.</li>
+                            <li>Lỗi hiển thị hoặc thao tác trên website.</li>
+                            <li>Khóa hoặc kích hoạt tài khoản.</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <h5 class="fw-bold text-dark">Gửi yêu cầu hỗ trợ tài khoản</h5>
+                    
+                    <!-- Form gửi yêu cầu về route contact -->
+                    <form method="POST" action="{% url 'contact' %}">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Họ và tên</label>
+                            <input type="text" name="name" class="form-control" placeholder="Nhập họ tên của bạn" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Email</label>
+                            <input type="email" name="email" class="form-control" placeholder="name@gmail.com" required>
+                        </div>
+
+                        <!-- KHung chọn nhanh câu hỏi hỗ trợ (Dropdown) -->
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-success">
+                                <i class="fas fa-question-circle me-1"></i> Chọn nhanh vấn đề cần hỗ trợ:
+                            </label>
+                            <select id="quickSelectTopic" class="form-select form-select-sm border-success">
+                                <option value="" selected disabled>-- Bấm để chọn câu hỏi/sự cố mẫu --</option>
+                                <option value="Tôi không thể đăng nhập vào tài khoản ứng viên của mình. Vui lòng hỗ trợ giúp tôi.">1. Không thể đăng nhập vào tài khoản</option>
+                                <option value="Tôi muốn yêu cầu hỗ trợ khôi phục hoặc cấp lại mật khẩu mới cho tài khoản.">2. Quên mật khẩu / Cần cấp lại mật khẩu</option>
+                                <option value="Tôi gặp lỗi kỹ thuật khi chỉnh sửa thông tin cá nhân và cập nhật CV trên hệ thống.">3. Lỗi cập nhật hồ sơ cá nhân / CV</option>
+                                <option value="Giao diện website hiển thị lỗi hoặc không tải được trang ở một số chức năng chung.">4. Lỗi hiển thị giao diện / Thao tác hệ thống</option>
+                                <option value="Yêu cầu khác về tài khoản (Không liên quan đến nhà tuyển dụng và công việc).">5. Vấn đề khác về tài khoản hệ thống</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold">Nội dung chi tiết</label>
+                            <textarea id="messageContent" name="message" class="form-control" rows="4" placeholder="Chọn câu hỏi ở trên hoặc tự nhập mô tả sự cố tài khoản..." required></textarea>
+                            <div class="form-text text-danger small mt-1">Lưu ý: Không gửi thông tin về đơn tuyển dụng hoặc việc làm tại đây.</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">
+                            <i class="fas fa-paper-plane me-2"></i> Gửi yêu cầu cho Admin
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer đồng bộ hệ thống -->
+    <footer class="bg-dark text-white text-center py-3 mt-auto">
+        <div class="container small text-white-50">&copy; 2026 CTJob. Phát triển bởi Sinh viên Lê Chí Thanh.</div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Script tự động điền nội dung khi ứng viên chọn câu hỏi mẫu ở dropdown
+        document.getElementById('quickSelectTopic').addEventListener('change', function () {
+            const selectedText = this.value;
+            const messageBox = document.getElementById('messageContent');
+            if (selectedText) {
+                messageBox.value = selectedText;
+            }
+        });
+    </script>
+</body>
+</html>

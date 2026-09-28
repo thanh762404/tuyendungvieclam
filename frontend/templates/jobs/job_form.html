@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng tin tuyển dụng mới</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+        }
+        .text-custom-primary {
+            color: var(--primary-color) !important;
+        }
+        .btn-success-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        .btn-success-custom:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+        p label, .form-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+            margin-top: 12px;
+        }
+        p input, p select, p textarea {
+            display: block;
+            width: 100%;
+            padding: 0.375rem 0.75rem;
+            font-size: 1rem;
+            font-weight: 400;
+            line-height: 1.5;
+            color: #212529;
+            background-color: #fff;
+            background-clip: padding-box;
+            border: 1px solid #dee2e6;
+            appearance: none;
+            border-radius: 8px;
+            transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+        p input:focus, p select:focus, p textarea:focus {
+            border-color: var(--primary-color);
+            outline: 0;
+            box-shadow: 0 0 0 0.25rem rgba(0, 177, 79, 0.25);
+        }
+        p textarea {
+            min-height: 120px;
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Thanh điều hướng -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2 px-3 rounded-pill">Đăng nhập</a>
+                    <a href="{% url 'signup' %}" class="btn btn-light text-success btn-sm px-3 rounded-pill fw-semibold">Đăng ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <div class="row justify-content-center mb-3">
+            <div class="col-md-8">
+                <nav aria-label="breadcrumb" class="breadcrumb-custom text-muted small">
+                    <a href="{% url 'home' %}">Trang chủ</a> / <a href="{% url 'recruiter_job_list' %}">Quản lý tin tuyển dụng</a> / 
+                    <span class="text-dark">
+                        {% if is_clone %}Tạo tin tuyển dụng mới từ tin cũ{% elif job %}Cập nhật tin tuyển dụng{% else %}Đăng tin tuyển dụng mới{% endif %}
+                    </span>
+                </nav>
+            </div>
+        </div>
+
+        <div class="row justify-content-center">
+            <div class="col-md-8 bg-white p-4 p-md-5 rounded-4 shadow-sm">
+                <h3 class="text-center text-custom-primary mb-4 fw-bold">
+                    {% if is_clone %}Tạo Tin Mới Từ Tin Cũ{% elif job %}Cập Nhật Tin Tuyển Dụng{% else %}Đăng Tin Tuyển Dụng Mới{% endif %}
+                </h3>
+                
+                <div class="alert alert-success small mb-4" role="alert">
+                    <i class="fas fa-info-circle me-1"></i> <strong>Hướng dẫn:</strong> Chọn <strong>Ngành đào tạo</strong> để hiển thị chính xác danh sách kỹ năng tương ứng với trang đăng ký của ứng viên.
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <!-- Render các trường thông thường khác -->
+                    {% for field in form %}
+                        {% if field.name != 'major_required' and field.name != 'skills_required' %}
+                            <div class="mb-3">
+                                {{ field.label_tag }}
+                                {{ field }}
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1">{{ field.errors }}</div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+
+                    <!-- NGÀNH ĐÀO TẠO -->
+                    <div class="mb-3">
+                        <label class="form-label" for="{{ form.major_required.id_for_label }}">Ngành đào tạo</label>
+                        {{ form.major_required }}
+                        {% if form.major_required.errors %}
+                            <div class="text-danger small mt-1">{{ form.major_required.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- KỸ NĂNG YÊU CẦU -->
+                    <div class="mb-3">
+                        <label class="form-label">Kỹ năng yêu cầu</label>
+                        <div class="d-none">{{ form.skills_required }}</div>
+                        
+                        <div id="skills-container" class="border rounded p-3 bg-light">
+                            <p class="text-muted small mb-0">-- Vui lòng chọn ngành đào tạo ở trên để hiển thị các kỹ năng phù hợp --</p>
+                        </div>
+                        {% if form.skills_required.errors %}
+                            <div class="text-danger small mt-1">{{ form.skills_required.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <button type="submit" class="btn btn-success-custom w-100 py-2.5 rounded-pill fw-semibold mt-3 shadow-sm">
+                        {% if is_clone %}Lưu tin mới{% elif job %}Cập nhật tin{% else %}Đăng Tin{% endif %}
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- SCRIPT ĐỒNG BỘ 100% KỸ NĂNG VỚI TRANG ĐĂNG KÝ -->
+    <script>
+    const skillsByMajor = {
+        "Công nghệ thông tin": ["Python", "Java", "ReactJS", "MySQL", "Django", "HTML/CSS", "Node.js", "Tester"],
+        "Quản trị kinh doanh": ["Quản lý dự án", "Quản lý nhân sự", "Phân tích kinh doanh", "Microsoft Excel"],
+        "Thiết kế đồ họa": ["Photoshop", "UI/UX Design", "Figma"],
+        "Logistics": ["Quản lý kho", "Quản lý chuỗi cung ứng", "Xuất nhập khẩu", "Microsoft Excel"],
+        "Ngôn ngữ Anh": ["English", "Translation", "IELTS", "TOEIC"],
+        "Tài chính – Ngân hàng": ["Nghiệp vụ ngân hàng", "Tín dụng ngân hàng", "Kế toán ngân hàng", "Chăm sóc khách hàng"]
+    };
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const majorSelect = document.getElementById("id_major_required");
+        const skillsContainer = document.getElementById("skills-container");
+        const hiddenSkillsInput = document.getElementById("id_skills_required");
+
+        if (!majorSelect || !skillsContainer || !hiddenSkillsInput) return;
+
+        function updateSkillCheckboxes(selectedMajor, preCheckedSkills = []) {
+            skillsContainer.innerHTML = "";
+            if (!skillsByMajor[selectedMajor]) {
+                skillsContainer.innerHTML = '<p class="text-muted small mb-0">-- Vui lòng chọn ngành đào tạo ở trên để hiển thị các kỹ năng phù hợp --</p>';
+                return;
+            }
+
+            let rowDiv = document.createElement("div");
+            rowDiv.className = "row g-2";
+
+            skillsByMajor[selectedMajor].forEach(skill => {
+                let colDiv = document.createElement("div");
+                colDiv.className = "col-md-6";
+
+                let isChecked = preCheckedSkills.includes(skill) ? "checked" : "";
+
+                colDiv.innerHTML = `
+                    <div class="form-check border p-2 rounded bg-white shadow-sm">
+                        <input class="form-check-input skill-checkbox ms-1" type="checkbox" value="${skill}" id="skill_${skill.replace(/[^a-zA-Z0-9]/g, '_')}" ${isChecked}>
+                        <label class="form-check-label ms-2 fw-medium text-success" for="skill_${skill.replace(/[^a-zA-Z0-9]/g, '_')}">${skill}</label>
+                    </div>
+                `;
+                rowDiv.appendChild(colDiv);
+            });
+            skillsContainer.appendChild(rowDiv);
+            attachCheckboxListeners();
+        }
+
+        function updateHiddenInput() {
+            let checkedSkills = [];
+            document.querySelectorAll(".skill-checkbox:checked").forEach(cb => {
+                checkedSkills.push(cb.value);
+            });
+            hiddenSkillsInput.value = checkedSkills.join(", ");
+        }
+
+        function attachCheckboxListeners() {
+            document.querySelectorAll(".skill-checkbox").forEach(cb => {
+                cb.addEventListener("change", updateHiddenInput);
+            });
+        }
+
+        majorSelect.addEventListener("change", function() {
+            updateSkillCheckboxes(this.value);
+            hiddenSkillsInput.value = "";
+        });
+
+        // Hỗ trợ trường hợp đang sửa tin cũ (Cập nhật hoặc Clone)
+        if (majorSelect.value) {
+            let existingSkills = hiddenSkillsInput.value ? hiddenSkillsInput.value.split(",").map(s => s.trim()) : [];
+            updateSkillCheckboxes(majorSelect.value, existingSkills);
+        }
+    });
+    </script>
+</body>
+</html>

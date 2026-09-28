@@ -1,0 +1,22 @@
+# Môi trường ảo Python
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Cache Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Database local
+db.sqlite3
+backend/db.sqlite3
+
+# Các file hệ thống / IDE
+.vscode/
+.DS_Store
+
+# Biến môi trường (Bảo mật)
+.env
+backend/.env

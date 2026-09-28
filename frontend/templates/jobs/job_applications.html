@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Danh sách ứng viên - {{ job.title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #00b14f;
+            --primary-hover: #009543;
+        }
+        body {
+            background-color: #f4f5f7;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .navbar-custom {
+            background-color: var(--primary-color) !important;
+        }
+        .text-custom-primary {
+            color: var(--primary-color) !important;
+        }
+        .btn-success-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+        }
+        .btn-success-custom:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+            color: white;
+        }
+        .table-custom-header {
+            background-color: rgba(0, 177, 79, 0.1) !important;
+            color: #00863b;
+        }
+        .breadcrumb-custom a {
+            color: #6c757d;
+            text-decoration: none;
+        }
+        .breadcrumb-custom a:hover {
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <!-- Thanh điều hướng đồng bộ với các trang khác -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            <div class="d-flex align-items-center">
+                {% if user.is_authenticated %}
+                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <form action="{% url 'logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
+                    </form>
+                {% else %}
+                    <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2 px-3 rounded-pill">Đăng nhập</a>
+                    <a href="{% url 'signup' %}" class="btn btn-light text-success btn-sm px-3 rounded-pill fw-semibold">Đăng ký</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4 mb-5">
+        <!-- Đường dẫn điều hướng breadcrumb chuẩn -->
+        <div class="row mb-3">
+            <div class="col-12">
+                <nav aria-label="breadcrumb" class="breadcrumb-custom text-muted small">
+                    <a href="{% url 'home' %}">Trang chủ</a> / <a href="{% url 'recruiter_job_list' %}">Quản lý tin tuyển dụng</a> / <span class="text-dark">Danh sách ứng viên</span>
+                </nav>
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <h2 class="mb-0 fw-bold text-dark fs-3">Ứng viên nộp vào: <span class="text-custom-primary">{{ job.title }}</span></h2>
+        </div>
+
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-custom-header">
+                        <tr>
+                            <th class="py-3 ps-4" style="width: 60px;">STT</th>
+                            <th class="py-3">Ứng viên</th>
+                            <th class="py-3">Ngày nộp</th>
+                            <th class="py-3">CV</th>
+                            <th class="py-3">Trạng thái</th>
+                            <th class="py-3">Lịch hẹn</th>
+                            <th class="py-3 text-end pe-4">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for app in applications %}
+                        <tr>
+                            <td class="ps-4 fw-semibold text-muted">{{ forloop.counter }}</td>
+                            <td><strong>{{ app.candidate.username }}</strong></td>
+                            <td>{{ app.applied_at|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                {% if app.cv_file %}
+                                    <a href="{{ app.cv_file.url }}" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3" style="border-color: #00b14f; color: #00b14f;"><i class="fas fa-download me-1"></i> Tải CV</a>
+                                {% else %}
+                                    <span class="text-muted small">Không có CV</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge rounded-pill px-3 py-2 
+                                    {% if app.status == 'Pending' %}bg-warning text-dark
+                                    {% elif app.status == 'Approved' %}bg-success
+                                    {% else %}bg-danger{% endif %}" 
+                                    {% if app.status == 'Approved' %}style="background-color: #00b14f !important;"{% endif %}>
+                                    {{ app.get_status_display }}
+                                </span>
+                                <!-- Hiển thị thời gian duyệt hoặc từ chối -->
+                                {% if app.status != 'Pending' and app.updated_at %}
+                                    <div class="text-muted small mt-1" style="font-size: 0.75rem;">
+                                        <i class="far fa-clock me-1"></i>{{ app.updated_at|date:"d/m/Y H:i" }}
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if app.interview_details %}
+                                    <div class="small text-dark bg-light p-2 rounded border" style="white-space: pre-line;">
+                                        <i class="fas fa-calendar-alt text-success me-1"></i>{{ app.interview_details }}
+                                    </div>
+                                    {% if app.needs_interview_reminder %}
+                                        <div class="small text-warning mt-2 fw-semibold">
+                                            <i class="fas fa-bell me-1"></i> Nhắc nhở: còn 1 ngày nữa đến lịch hẹn.
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted small">Chưa có lịch hẹn</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <a href="{% url 'update_application_status' app.pk %}" class="btn btn-sm btn-success-custom rounded-pill px-3"><i class="fas fa-edit me-1"></i> Cập nhật / Hẹn lịch</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-5">
+                                <i class="fas fa-inbox fs-2 mb-2 text-black-50"></i>
+                                <p class="mb-0">Chưa có ứng viên nào nộp hồ sơ.</p>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

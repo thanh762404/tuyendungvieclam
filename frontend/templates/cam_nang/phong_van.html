@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Bí quyết phỏng vấn thành công - CTJob</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .bg-primary { background-color: #00b14f !important; }
+        .text-primary { color: #00b14f !important; }
+        .btn-primary { background-color: #00b14f !important; border-color: #00b14f !important; }
+        .btn-primary:hover { background-color: #009543 !important; }
+        body { padding-top: 75px; }
+    </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+    <!-- Navbar cố định (Đã bỏ nút quay lại) -->
+    <div class="fixed-top shadow-sm">
+        <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+            <div class="container">
+                <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
+            </div>
+        </nav>
+    </div>
+
+    <div class="container my-5 flex-grow-1" style="max-width: 900px;">
+        <div class="card shadow-sm border-0 p-4 p-md-5 bg-white">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-3">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none text-success">Trang chủ</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Bí quyết phỏng vấn</li>
+                </ol>
+            </nav>
+            <h1 class="fw-bold text-primary mb-3">Bí quyết phỏng vấn ghi điểm tuyệt đối trước nhà tuyển dụng</h1>
+            <p class="text-muted border-bottom pb-3"><i class="far fa-calendar-alt me-1"></i> Cập nhật năm 2026 &bull; <i class="fas fa-user-edit me-1"></i> Ban biên tập CTJob</p>
+            
+            <div class="content mt-4">
+                <h4 class="fw-bold text-dark mt-4">1. Tìm hiểu kỹ về công ty trước buổi phỏng vấn</h4>
+                <p>Nghiên cứu về lĩnh vực hoạt động, văn hóa, sản phẩm hoặc các dự án gần đây của công ty sẽ giúp bạn tự tin trả lời và thể hiện sự quan tâm thực sự đối với vị trí ứng tuyển.</p>
+
+                <h4 class="fw-bold text-dark mt-4">2. Chuẩn bị trang phục lịch sự, đúng giờ</h4>
+                <p>Đến sớm trước 10-15 phút để ổn định tâm lý. Tác phong gọn gàng, lịch sự luôn tạo thiện cảm lớn ngay từ khoảnh khắc bước vào phòng.</p>
+
+                <h4 class="fw-bold text-dark mt-4">3. Kỹ thuật trả lời phỏng vấn theo mô hình STAR</h4>
+                <p>Situation (Tình huống) - Task (Nhiệm vụ) - Action (Hành động) - Result (Kết quả) giúp bạn diễn giải các câu hỏi tình huống một cách rành mạch và logic nhất.</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white text-center py-3 mt-auto">
+        <div class="container small text-white-50">&copy; 2026 CTJob. Phát triển bởi Sinh viên Lê Chí Thanh.</div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

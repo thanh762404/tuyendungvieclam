@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Trang chủ - Cổng thông tin việc làm CTJob</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+        
+    <style>
+        html { scroll-behavior: smooth; }
+        .bg-primary { background-color: #00b14f !important; }
+        .text-primary { color: #00b14f !important; }
+        .border-primary { border-color: #00b14f !important; }
+        .btn-primary { background-color: #00b14f !important; border-color: #00b14f !important; color: #fff !important; }
+        .btn-primary:hover { background-color: #009543 !important; border-color: #009543 !important; }
+        .btn-outline-primary { color: #00b14f !important; border-color: #00b14f !important; }
+        .btn-outline-primary:hover { background-color: #00b14f !important; color: #fff !important; }
+
+        .sticky-navbar { position: fixed; top: 0; left: 0; width: 100%; z-index: 1030; }
+        body { padding-top: 75px; }
+
+        .job-card {
+            position: relative !important;
+            overflow: hidden !important;
+            transition: all 0.2s ease-in-out;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 10px !important;
+        }
+        .job-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.08) !important;
+            border-color: #00b14f !important;
+        }
+        .company-logo { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #dee2e6; }
+        .badge-moi, .badge-expired, .badge-sap-het-han {
+            position: absolute !important; top: 0 !important; left: 0 !important;
+            color: white !important; padding: 4px 12px !important; font-weight: bold !important;
+            font-size: 0.7rem !important; border-bottom-right-radius: 6px !important; z-index: 5 !important;
+        }
+        .badge-moi { background-color: #dc3545 !important; }
+        .badge-sap-het-han { background-color: #fd7e14 !important; }
+        .badge-expired { background-color: #6c757d !important; }
+
+        .job-title {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .job-title:hover { color: #00b14f !important; }
+
+        #search-suggestions-box {
+            display: none;
+            position: absolute;
+            top: 105%;
+            left: 0;
+            width: 100%;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            z-index: 1000;
+            text-align: left;
+            color: #333;
+            border: 1px solid #e2e8f0;
+        }
+        .suggestion-item {
+            display: block; padding: 6px 0; color: #495057; text-decoration: none; font-size: 0.9rem; transition: color 0.2s;
+        }
+        .suggestion-item:hover { color: #00b14f; padding-left: 4px; }
+
+        .dropdown-menu-mega { width: 550px; padding: 20px; }
+        .footer-links a {
+            color: #adb5bd; text-decoration: none; display: block; margin-bottom: 8px; font-size: 0.85rem; transition: color 0.2s;
+        }
+        .footer-links a:hover { color: #00b14f; }
+
+        .popover {
+            max-width: 400px !important;
+            border-radius: 10px !important;
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+            border: none !important;
+        }
+        .popover-header {
+            background-color: #fff !important;
+            border-bottom: 1px solid #eee !important;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+    
+    
+    <!-- THANH MENU CỐ ĐỊNH -->
+    <div class="sticky-navbar shadow-sm">
+        <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #00b14f !important;">
+            <div class="container">
+                <div class="d-flex align-items-center">
+                    <a class="navbar-brand fw-bold me-4 fs-4 d-flex align-items-center" href="{% url 'home' %}">
+                        <i class="fas fa-briefcase me-2"></i>CTJob <i class="fas fa-star text-warning ms-1" style="font-size: 1rem;"></i>
+                    </a>
+                    
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-white fw-semibold" href="#" role="button" data-bs-toggle="dropdown">Việc làm</a>
+                            <ul class="dropdown-menu shadow border-0 py-2 dropdown-menu-mega">
+                                <div class="row">
+                                <div class="col-md-12">
+                                    <h6 class="dropdown-header text-uppercase text-primary fw-bold small">Theo ngành đào tạo</h6>
+                                    <li><a class="dropdown-item py-1" href="?major=Công nghệ thông tin#ket-qua">Công nghệ thông tin</a></li>
+                                    <li><a class="dropdown-item py-1" href="?major=Quản trị kinh doanh#ket-qua">Quản trị kinh doanh</a></li>
+                                    <li><a class="dropdown-item py-1" href="?major=Thiết kế đồ họa#ket-qua">Thiết kế đồ họa</a></li>
+                                    <li><a class="dropdown-item py-1" href="?major=Logistics#ket-qua">Logistics</a></li>
+                                    <li><a class="dropdown-item py-1" href="?major=Ngôn ngữ Anh#ket-qua">Ngôn ngữ Anh</a></li>
+                                    <li><a class="dropdown-item py-1" href="?major=Tài chính - Ngân hàng#ket-qua">Tài chính - Ngân hàng</a></li>
+                                </div>
+                            </div>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-white fw-semibold" href="#" role="button" data-bs-toggle="dropdown">Tạo CV</a>
+                            <ul class="dropdown-menu shadow border-0 py-2" style="min-width: 220px;">
+                                <li><a class="dropdown-item py-2" href="{% url 'profile' %}"><i class="fas fa-file-alt text-primary me-2"></i> Quản lý CV của bạn</a></li>
+                                <li><a class="dropdown-item py-2" href="{% url 'profile' %}"><i class="fas fa-upload text-success me-2"></i> Tải CV lên</a></li>
+                                <li><a class="dropdown-item py-2" href="{% url 'cam_nang_cv' %}"><i class="fas fa-book text-warning me-2"></i> Hướng dẫn viết CV</a></li>
+                            </ul>
+                        </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-white fw-semibold" href="#" role="button" data-bs-toggle="dropdown">Cẩm nang nghề nghiệp</a>
+                            <ul class="dropdown-menu shadow border-0 py-2" style="min-width: 220px;">
+                                <li><a class="dropdown-item py-2" href="{% url 'cam_nang_phong_van' %}"><i class="fas fa-lightbulb text-warning me-2"></i> Bí quyết phỏng vấn</a></li>
+                                <li><a class="dropdown-item py-2" href="{% url 'cam_nang_dinh_huong' %}"><i class="fas fa-graduation-cap text-primary me-2"></i> Định hướng nghề nghiệp</a></li>
+                                <li><a class="dropdown-item py-2" href="{% url 'cam_nang_thi_truong' %}"><i class="fas fa-briefcase text-success me-2"></i> Thị trường lao động</a></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="d-flex align-items-center">
+                    {% if user.is_authenticated %}
+                        <span class="text-white me-3 d-none d-sm-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                        <a href="{% url 'profile' %}" class="btn btn-outline-light btn-sm me-2"><i class="fas fa-user me-1"></i> Hồ sơ</a>
+                        {% if user.is_recruiter %}
+                            <a href="{% url 'recruiter_job_list' %}" class="btn btn-light btn-sm me-2"><i class="fas fa-tasks me-1"></i> Quản lý tin</a>
+                        {% else %}
+                            <a href="{% url 'candidate_applications' %}" class="btn btn-light btn-sm me-2 position-relative text-primary" title="Thông báo">
+                                <i class="fas fa-bell"></i>
+                                {% if unread_count and unread_count > 0 %}
+                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">{{ unread_count }}</span>
+                                {% else %}
+                                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle"></span>
+                                {% endif %}
+                            </a>
+                        {% endif %}
+                        <form action="{% url 'logout' %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-light btn-sm">Đăng xuất</button>
+                        </form>
+                    {% else %}
+                        <a href="{% url 'login' %}" class="btn btn-outline-light btn-sm me-2">Đăng nhập</a>
+                        <a href="{% url 'signup' %}" class="btn btn-light btn-sm">Đăng ký</a>
+                    {% endif %}
+                </div>
+            </div>
+        </nav>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="container mb-5 flex-grow-1">
+        <div class="card shadow-sm border-0 my-4 text-white overflow-visible" style="background-color: #00b14f !important;" id="ket-qua">
+            <div class="card-body p-4 text-center">
+                <h1 class="fw-bold mb-2 fs-4">CTJob - Tạo CV, Tìm việc làm, Tuyển dụng hiệu quả</h1>
+                <p class="text-white-50 mb-3 small">Tiếp lợi thế, nối thành công</p>
+                
+                <div class="position-relative d-inline-block w-100 mx-auto" style="max-width: 900px;">
+                    <form method="GET" action="{% url 'home' %}#ket-qua" class="row g-2 justify-content-center bg-white p-2 rounded shadow m-0">
+                        <div class="col-md-6 position-relative">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="fas fa-search"></i></span>
+                                <input type="text" id="search-input" name="q" class="form-control border-start-0 ps-0 shadow-none" placeholder="Vị trí tuyển dụng, tên công ty..." value="{{ query }}" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="input-group">
+                                <span class="input-group-text bg-white text-muted border-end-0"><i class="fas fa-map-marker-alt text-danger"></i></span>
+                                <input type="text" name="location" class="form-control border-start-0 ps-0 shadow-none" placeholder="Địa điểm (VD: Đà Nẵng...)" value="{{ location }}">
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100 fw-bold py-2"><i class="fas fa-search me-1"></i> Tìm kiếm</button>
+                        </div>
+                    </form>
+
+                    <div id="search-suggestions-box" class="p-3 shadow-lg">
+                        <div class="row">
+                            <div class="col-md-5 border-end pe-3">
+                                <h6 class="fw-bold text-dark mb-2 fs-6 text-start"><i class="fas fa-fire text-danger me-1"></i> Từ khóa phổ biến</h6>
+                                <div class="text-start d-flex flex-column gap-1">
+                                    <a href="?q=Kỹ sư#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Kỹ sư</a>
+                                    <a href="?q=Lập trình viên Full-stack#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Lập trình viên Full-stack</a>
+                                    <a href="?q=Marketing#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Marketing</a>
+                                    <a href="?q=Truyền thông#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Truyền thông</a>
+                                    <a href="?q=Kế toán#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Kế toán</a>
+                                    <a href="?q=Kinh doanh#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Kinh doanh</a>
+                                    <a href="?q=Sales#ket-qua" class="suggestion-item"><i class="fas fa-chevron-right text-muted small me-1"></i> Sales</a>
+                                </div>
+                            </div>
+
+                            <div class="col-md-7 ps-3">
+                                <h6 class="fw-bold text-dark mb-2 fs-6 text-start">
+                                    <i class="fas fa-briefcase text-primary me-1"></i> Việc làm có thể bạn quan tâm 
+                                    <span class="badge bg-success text-white fw-normal" style="font-size: 0.65rem;">Dựa trên CV/Kỹ năng</span>
+                                </h6>
+                                <div class="text-start d-flex flex-column gap-2" style="max-height: 250px; overflow-y: auto;">
+                                    {% if suggested_jobs %}
+                                        {% for job in suggested_jobs|slice:":4" %}
+                                        <a href="{% url 'job_detail' job.pk %}" class="text-decoration-none p-2 rounded border border-light bg-light d-block">
+                                            <div class="fw-bold text-primary small text-truncate">{{ job.title }}</div>
+                                            <div class="text-muted text-truncate" style="font-size: 0.75rem;">
+                                                <i class="fas fa-building me-1"></i> {{ job.company_name }} &bull; <span class="text-success fw-semibold">{{ job.salary }}</span>
+                                            </div>
+                                        </a>
+                                        {% endfor %}
+                                    {% else %}
+                                        {% for job in other_jobs|slice:":4" %}
+                                        <a href="{% url 'job_detail' job.pk %}" class="text-decoration-none p-2 rounded border border-light bg-light d-block">
+                                            <div class="fw-bold text-primary small text-truncate">{{ job.title }}</div>
+                                            <div class="text-muted text-truncate" style="font-size: 0.75rem;">
+                                                <i class="fas fa-building me-1"></i> {{ job.company_name }} &bull; <span class="text-success fw-semibold">{{ job.salary }}</span>
+                                            </div>
+                                        </a>
+                                        {% empty %}
+                                        <p class="text-muted small italic">Chưa có gợi ý việc làm phù hợp.</p>
+                                        {% endfor %}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- DANH SÁCH VIỆC LÀM PHÙ HỢP -->
+        {% if suggested_jobs %}
+            <div class="mb-4">
+                <h3 class="fw-bold mb-3 fs-5" style="color: #00b14f !important;">
+                    <i class="fas fa-star text-warning me-2"></i>Việc làm phù hợp với sở trường của bạn
+                </h3>
+                <div class="row g-3">
+                    {% for job in suggested_jobs %}
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="card shadow-sm h-100 job-card p-3 position-relative">
+                            {% if job.is_expired_status %}<span class="badge-expired">ĐÃ HẾT HẠN</span>
+                            {% elif job.is_urgent_status %}<span class="badge-sap-het-han"><i class="fas fa-exclamation-triangle me-1"></i> SẮP HẾT HẠN</span>
+                            {% elif job.is_new_status %}<span class="badge-moi"><i class="fas fa-bolt me-1"></i> MỚI</span>{% endif %}
+
+                            <div class="d-flex align-items-start gap-3 pt-2">
+                               <!-- MỚI (Tự động lấy logo của chính nhà tuyển dụng đăng tin) -->
+                                {% if job.company_logo %}
+                                    <img src="{{ job.company_logo.url }}" alt="{{ job.get_company_name }}" class="company-logo d-none d-sm-block">
+                                {% else %}
+                                    <div class="company-logo d-none d-sm-block bg-light d-flex align-items-center justify-content-center border text-muted px-1" style="font-size: 0.65rem; text-align: center; line-height: 1.1;">Chờ cập nhật</div>
+                                {% endif %}
+
+                                <div class="flex-grow-1">
+                                    <h6 class="fw-bold mb-1">
+                                        <a href="{% url 'job_detail' job.pk %}" class="text-dark text-decoration-none job-title custom-popover" 
+                                           data-bs-toggle="popover" 
+                                           data-bs-placement="right"
+                                           data-bs-html="true"
+                                           data-bs-title="<div class='fw-bold'>{{ job.title }}</div>"
+                                           data-bs-content="
+                                                <p class='small text-success fw-bold mb-1'>{{ job.company_name }}</p>
+                                                <p class='small mb-2'><strong>Mức lương:</strong> {{ job.salary }}</p>
+                                                <hr class='my-2'>
+                                                <p class='small mb-2'><strong>Địa điểm:</strong> {{ job.location }}</p>
+                                                <div class='p-2 mb-3 bg-light border border-warning rounded d-flex align-items-center justify-content-between'>
+                                                    <span class='small text-dark fw-bold'><i class='fas fa-clock text-danger me-1'></i> Hạn nộp:</span>
+                                                    <span class='badge bg-danger text-white fs-6 px-2 py-1'>{{ job.expires_at|date:'H:i d/m/Y' }}</span>
+                                                </div>
+                                                <div class='d-flex gap-2'>
+                                                    <a href='{% url 'job_detail' job.pk %}' class='btn btn-success btn-sm w-100 text-white'>Xem chi tiết</a>
+                                                </div>
+                                           ">
+                                            {{ job.title }}
+                                        </a>
+                                    </h6>
+                                    <p class="text-muted small mb-2 text-truncate" style="max-width: 180px;">
+                                        <i class="fas fa-building me-1"></i> {{ job.company_name }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small">
+                                <span class="text-success fw-bold"><i class="fas fa-money-bill-wave me-1"></i>{{ job.salary }}</span>
+                                <span class="text-muted"><i class="fas fa-map-marker-alt text-danger me-1"></i>{{ job.location }}</span>
+                            </div>
+                            <div class="small text-muted mt-2">
+                                <i class="far fa-clock me-1"></i> Đăng: {{ job.created_at|date:"d/m/Y H:i" }}
+                            </div>
+                            <div class="small text-muted mt-1">
+                                <i class="fas fa-hourglass-end me-1"></i> Hết hạn: {{ job.expires_at|date:"d/m/Y H:i" }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <hr class="mb-4">
+        {% endif %}
+
+        <!-- DANH SÁCH TẤT CẢ CÔNG VIỆC -->
+        <h3 class="fw-bold mb-3 fs-5" style="color: #00b14f !important;"><i class="fas fa-fire text-danger me-2"></i>Tất cả công việc</h3>
+        <div class="row g-3 mb-5">
+            {% for job in other_jobs %}
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card shadow-sm h-100 job-card p-3 position-relative">
+                    {% if job.is_expired_status %}<span class="badge-expired">ĐÃ HẾT HẠN</span>
+                    {% elif job.is_urgent_status %}<span class="badge-sap-het-han"><i class="fas fa-exclamation-triangle me-1"></i> SẮP HẾT HẠN</span>
+                    {% elif job.is_new_status %}<span class="badge-moi"><i class="fas fa-bolt me-1"></i> MỚI</span>{% endif %}
+
+                    <div class="d-flex align-items-start gap-3 pt-2">
+                        {% if job.company_logo %}
+                            <img src="{{ job.company_logo.url }}" alt="{{ job.company_name }}" class="company-logo d-none d-sm-block">
+                        {% elif job.recruiter and job.recruiter.profile and job.recruiter.profile.logo %}
+                            <img src="{{ job.recruiter.profile.logo.url }}" alt="{{ job.company_name }}" class="company-logo d-none d-sm-block">
+                        {% else %}
+                            <div class="company-logo d-none d-sm-block bg-light d-flex align-items-center justify-content-center border text-muted px-1" style="font-size: 0.65rem; text-align: center; line-height: 1.1;">Chờ cập nhật</div>
+                        {% endif %}
+
+                        <div class="flex-grow-1">
+                            <h6 class="fw-bold mb-1">
+                                <a href="{% url 'job_detail' job.pk %}" class="text-dark text-decoration-none job-title custom-popover" 
+                                   data-bs-toggle="popover" 
+                                   data-bs-placement="right"
+                                   data-bs-html="true"
+                                   data-bs-title="<div class='fw-bold'>{{ job.title }}</div>"
+                                   data-bs-content="
+                                        <p class='small text-success fw-bold mb-1'>{{ job.company_name }}</p>
+                                        <p class='small mb-2'><strong>Mức lương:</strong> {{ job.salary }}</p>
+                                        <hr class='my-2'>
+                                        <p class='small mb-2'><strong>Địa điểm:</strong> {{ job.location }}</p>
+                                        <div class='p-2 mb-3 bg-light border border-warning rounded d-flex align-items-center justify-content-between'>
+                                            <span class='small text-dark fw-bold'><i class='fas fa-clock text-danger me-1'></i> Hạn nộp:</span>
+                                            <span class='badge bg-danger text-white px-2 py-1' style='font-size: 0.85rem;'>{{ job.expires_at|date:'H:i d/m/Y' }}</span>
+                                        </div>
+                                        <div class='d-flex gap-2'>
+                                            <a href='{% url 'job_detail' job.pk %}' class='btn btn-success btn-sm w-100 text-white'>Xem chi tiết</a>
+                                        </div>
+                                   ">
+                                    {{ job.title }}
+                                </a>
+                            </h6>
+                            <p class="text-muted small mb-2 text-truncate" style="max-width: 180px;">
+                                <i class="fas fa-building me-1"></i> {{ job.company_name }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small">
+                        <span class="text-success fw-bold"><i class="fas fa-money-bill-wave me-1"></i>{{ job.salary }}</span>
+                        <span class="text-muted"><i class="fas fa-map-marker-alt text-danger me-1"></i>{{ job.location }}</span>
+                    </div>
+                    <div class="small text-muted mt-2">
+                        <i class="far fa-clock me-1"></i> Đăng: {{ job.created_at|date:"d/m/Y H:i" }}
+                    </div>
+                    <div class="small text-muted mt-1">
+                        <i class="fas fa-hourglass-end me-1"></i> Kết thúc: {{ job.expires_at|date:"d/m/Y H:i" }}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-5"><p class="text-muted fs-5">Không tìm thấy công việc nào phù hợp.</p></div>
+            {% endfor %}
+        </div>
+
+        {% if expired_jobs %}
+        <div class="mb-5">
+            <h3 class="fw-bold mb-3 fs-5 text-secondary"><i class="fas fa-hourglass-end me-2"></i>Công việc đã hết hạn</h3>
+            <div class="row g-3">
+                {% for job in expired_jobs %}
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card shadow-sm h-100 job-card p-3 position-relative border-secondary">
+                        <span class="badge-expired">ĐÃ HẾT HẠN</span>
+
+                        <div class="d-flex align-items-start gap-3 pt-2">
+                            {% if job.company_logo %}
+                                <img src="{{ job.company_logo.url }}" alt="{{ job.company_name }}" class="company-logo d-none d-sm-block opacity-75">
+                            {% else %}
+                                <div class="company-logo d-none d-sm-block bg-light d-flex align-items-center justify-content-center border text-muted px-1 opacity-75" style="font-size: 0.65rem; text-align: center; line-height: 1.1;">Chờ cập nhật</div>
+                            {% endif %}
+
+                            <div class="flex-grow-1">
+                                <h6 class="fw-bold mb-1 text-secondary">
+                                    <a href="{% url 'job_detail' job.pk %}" class="text-secondary text-decoration-none job-title">
+                                        {{ job.title }}
+                                    </a>
+                                </h6>
+                                <p class="text-muted small mb-2 text-truncate" style="max-width: 180px;">
+                                    <i class="fas fa-building me-1"></i> {{ job.company_name }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top small text-secondary">
+                            <span class="fw-bold"><i class="fas fa-money-bill-wave me-1"></i>{{ job.salary }}</span>
+                            <span><i class="fas fa-map-marker-alt me-1"></i>{{ job.location }}</span>
+                        </div>
+                        <div class="small text-muted mt-2">
+                            <i class="far fa-clock me-1"></i> Đăng: {{ job.created_at|date:"d/m/Y H:i" }}
+                        </div>
+                        <div class="small text-danger mt-1">
+                            <i class="fas fa-hourglass-end me-1"></i> Hết hạn: {{ job.expires_at|date:"d/m/Y H:i" }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- FOOTER ĐA CỘT -->
+    <footer class="bg-dark text-white pt-5 pb-3 mt-auto border-top border-secondary">
+        <div class="container footer-links">
+            <div class="row g-4 mb-4">
+                <div class="col-lg-3 col-md-6">
+                    <h5 class="fw-bold text-white mb-3 d-flex align-items-center">
+                        <i class="fas fa-briefcase me-2 text-success"></i>CTJob <i class="fas fa-star text-warning ms-1" style="font-size: 0.8rem;"></i>
+                    </h5>
+                    <p class="text-white-50 small mb-3">Tiếp lợi thế, nối thành công - Cổng thông tin kết nối việc làm và nhân tài hàng đầu.</p>
+                    <p class="text-white small mb-1 fw-bold">Ứng dụng tải xuống:</p>
+                    <div class="d-flex gap-2 mt-2">
+                        <a href="https://www.apple.com/app-store/" target="_blank" class="btn btn-outline-light btn-sm px-2 py-1" style="font-size: 0.75rem;"><i class="fab fa-apple me-1"></i> App Store</a>
+                        <a href="https://play.google.com/" target="_blank" class="btn btn-outline-light btn-sm px-2 py-1" style="font-size: 0.75rem;"><i class="fab fa-google-play me-1"></i> Google Play</a>
+                    </div>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="fw-bold text-white text-uppercase fs-6 mb-3">Về CTJob</h6>
+                    <a href="{% url 'about' %}">Giới thiệu</a>
+                    <a href="{% url 'contact' %}">Liên hệ</a>
+                    <a href="{% url 'privacy' %}">Chính sách bảo mật</a>
+                    <a href="{% url 'terms' %}">Điều khoản dịch vụ</a>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="fw-bold text-white text-uppercase fs-6 mb-3">Cẩm nang nghề nghiệp</h6>
+                    <a href="{% url 'cam_nang_cv' %}">Hướng dẫn viết CV</a>
+                    <a href="{% url 'cam_nang_phong_van' %}">Bí quyết phỏng vấn</a>
+                    <a href="{% url 'cam_nang_dinh_huong' %}">Định hướng nghề nghiệp</a>
+                    <a href="{% url 'cam_nang_thi_truong' %}">Thị trường lao động</a>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="fw-bold text-white text-uppercase fs-6 mb-3">Tổng đài hỗ trợ</h6>
+                    <p class="text-white-50 small mb-1">Hotline: <a href="tel:0368031812" class="text-white text-decoration-none fw-bold">0368031812</a></p>
+                    <p class="text-white-50 small mb-3">Email: <a href="mailto:hotro@ctjob.vn" class="text-white text-decoration-none fw-bold">hotroctjob@gmail.com</a></p>
+                    <div class="mt-3">
+                        <span class="text-white-50 small d-block mb-2">Kết nối với chúng tôi:</span>
+                        <div class="d-flex gap-2">
+                            <a href="https://facebook.com" target="_blank" class="text-white bg-secondary bg-opacity-50 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px; text-decoration: none;" title="Facebook"><i class="fab fa-facebook-f"></i></a>
+                            <a href="https://linkedin.com" target="_blank" class="text-white bg-secondary bg-opacity-50 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px; text-decoration: none;" title="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
+                            <a href="https://tiktok.com" target="_blank" class="text-white bg-secondary bg-opacity-50 rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 32px; height: 32px; text-decoration: none;" title="TikTok"><i class="fab fa-tiktok"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <hr class="border-secondary my-3">
+            <div class="row align-items-center">
+                <div class="col-12 text-white-50 small text-center text-md-start">
+                    <p class="mb-0">&copy; 2026 Cổng thông tin việc làm CTJob. Phát triển bởi Sinh viên Lê Chí Thanh.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const searchInput = document.getElementById('search-input');
+        const searchBox = document.getElementById('search-suggestions-box');
+        searchInput.addEventListener('focus', () => searchBox.style.display = 'block');
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !searchBox.contains(e.target)) {
+                searchBox.style.display = 'none';
+            }
+        });
+
+        document.addEventListener("DOMContentLoaded", function () {
+            const popoverTriggerList = document.querySelectorAll('[data-bs-toggle="popover"]');
+            
+            popoverTriggerList.forEach(function (popoverEl) {
+                let popoverInstance = new bootstrap.Popover(popoverEl, {
+                    trigger: 'manual',
+                    html: true,
+                    container: 'body',
+                    placement: 'right'
+                });
+
+                let hideTimeout;
+
+                popoverEl.addEventListener('mouseenter', function () {
+                    clearTimeout(hideTimeout);
+                    popoverTriggerList.forEach(el => {
+                        if (el !== popoverEl) {
+                            let otherInstance = bootstrap.Popover.getInstance(el);
+                            if (otherInstance) otherInstance.hide();
+                        }
+                    });
+                    popoverInstance.show();
+                });
+
+                popoverEl.addEventListener('mouseleave', function () {
+                    hideTimeout = setTimeout(function () {
+                        let popoverElement = document.querySelector('.popover');
+                        if (popoverElement) {
+                            let isHoveringPopover = popoverElement.matches(':hover');
+                            if (!isHoveringPopover) {
+                                popoverInstance.hide();
+                            }
+                        } else {
+                            popoverInstance.hide();
+                        }
+                    }, 200);
+                });
+
+                popoverEl.addEventListener('inserted.bs.popover', function () {
+                    let popoverElement = document.querySelector('.popover');
+                    if (popoverElement) {
+                        popoverElement.addEventListener('mouseenter', function () {
+                            clearTimeout(hideTimeout);
+                        });
+                        popoverElement.addEventListener('mouseleave', function () {
+                            hideTimeout = setTimeout(function () {
+                                popoverInstance.hide();
+                            }, 200);
+                        });
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
