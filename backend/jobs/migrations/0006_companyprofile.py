@@ -12,17 +12,4 @@ class Migration(migrations.Migration):
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
-    operations = [
-        migrations.CreateModel(
-            name='CompanyProfile',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('company_name', models.CharField(max_length=255, verbose_name='Tên công ty')),
-                ('company_logo', models.ImageField(blank=True, null=True, upload_to='company_logos/', verbose_name='Logo công ty')),
-                ('address', models.CharField(blank=True, max_length=255, null=True, verbose_name='Địa chỉ công ty')),
-                ('website', models.URLField(blank=True, null=True, verbose_name='Website công ty')),
-                ('description', models.TextField(blank=True, null=True, verbose_name='Giới thiệu công ty')),
-                ('user', models.OneToOneField(limit_choices_to={'is_recruiter': True}, on_delete=django.db.models.deletion.CASCADE, related_name='company_profile', to=settings.AUTH_USER_MODEL, verbose_name='Tài khoản nhà tuyển dụng')),
-            ],
-        ),
-    ]
+    operations = []

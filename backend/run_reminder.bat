@@ -1,5 +1,6 @@
 @echo off
-cd /d D:\hc\tuyendungvieclam\backend
-call venv\Scripts\activate
-python manage.py send_interview_reminders
-pause
+pushd "%~dp0"
+"%~dp0venv\Scripts\python.exe" manage.py send_interview_reminders
+set "RESULT=%ERRORLEVEL%"
+popd
+exit /b %RESULT%

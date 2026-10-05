@@ -1,4 +1,6 @@
 from datetime import timedelta
+import mimetypes
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
@@ -6,6 +8,7 @@ from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -84,43 +87,99 @@ def admin_delete_user(request, pk):
 
 
 @staff_member_required
+def admin_recruiter_cv(request, pk):
+    recruiter = get_object_or_404(User, pk=pk, is_recruiter=True)
+    if not recruiter.recruiter_cv:
+        raise Http404
+
+    try:
+        cv_file = recruiter.recruiter_cv.open("rb")
+    except OSError as error:
+        raise Http404 from error
+
+    filename = recruiter.recruiter_cv.name.rsplit("/", 1)[-1]
+    content_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    return FileResponse(cv_file, as_attachment=False, filename=filename, content_type=content_type)
+
+
+@staff_member_required
+def admin_approve_recruiter(request, pk):
+    if request.method == "POST":
+        recruiter = get_object_or_404(User, pk=pk, is_recruiter=True)
+        if recruiter.recruiter_cv:
+            recruiter.is_active = True
+            recruiter.save(update_fields=["is_active"])
+            messages.success(request, f"Đã duyệt tài khoản nhà tuyển dụng {recruiter.username}.")
+        else:
+            messages.error(request, "Không thể duyệt tài khoản vì chưa có CV xác minh.")
+
+    return redirect("admin_manage_users")
+
+
+@staff_member_required
 def admin_manage_jobs(request):
-    """Trang quản lý tất cả bài đăng tuyển dụng có phân trang"""
-    query = request.GET.get("q", "").strip()
+    """Show recruiters, then one selected recruiter's chosen expiration group."""
+    recruiter_id = request.GET.get("recruiter", "").strip()
     status_filter = request.GET.get("status", "").strip()
+    now = timezone.now()
+    recruiters = User.objects.filter(is_recruiter=True).annotate(
+        job_count=Count("job", distinct=True),
+        active_job_count=Count(
+            "job",
+            filter=Q(job__expires_at__isnull=True) | Q(job__expires_at__gte=now),
+            distinct=True,
+        ),
+        expired_job_count=Count(
+            "job", filter=Q(job__expires_at__lt=now), distinct=True
+        ),
+    ).order_by("username")
 
-    job_list = Job.objects.all().order_by("-created_at")
+    if recruiter_id:
+        recruiter = get_object_or_404(recruiters, pk=recruiter_id)
+        recruiter_jobs = list(
+            Job.objects.filter(recruiter=recruiter)
+            .select_related("recruiter")
+            .order_by("-created_at")
+        )
+        active_jobs = [job for job in recruiter_jobs if not job.is_expired_status]
+        expired_jobs = [job for job in recruiter_jobs if job.is_expired_status]
+        jobs = []
+        if status_filter == "active":
+            jobs = active_jobs
+        elif status_filter == "expired":
+            jobs = expired_jobs
+        else:
+            status_filter = ""
 
-    if query:
-        job_list = job_list.filter(
-            Q(title__icontains=query) | Q(company_name__icontains=query)
+        return render(
+            request,
+            "admin/manage_jobs.html",
+            {
+                "selected_recruiter": recruiter,
+                "recruiters": recruiters,
+                "jobs": jobs,
+                "status_filter": status_filter,
+                "active_job_count": len(active_jobs),
+                "expired_job_count": len(expired_jobs),
+                "selected_recruiter_job_count": recruiter.job_count,
+            },
         )
 
-    if status_filter:
-        filtered_jobs = []
-        for job in job_list:
-            if status_filter == "new" and job.is_new_status:
-                filtered_jobs.append(job)
-            elif status_filter == "urgent" and job.is_urgent_status:
-                filtered_jobs.append(job)
-            elif status_filter == "expired" and job.is_expired_status:
-                filtered_jobs.append(job)
-        job_list = filtered_jobs
-
-    paginator = Paginator(job_list, 10)
-    page_number = request.GET.get("page")
-    page_obj = paginator.get_page(page_number)
-
+    job_summary = Job.objects.aggregate(
+        total=Count("pk"),
+        active=Count(
+            "pk", filter=Q(expires_at__isnull=True) | Q(expires_at__gte=now)
+        ),
+        expired=Count("pk", filter=Q(expires_at__lt=now)),
+    )
     return render(
         request,
         "admin/manage_jobs.html",
         {
-            "jobs": page_obj,
-            "page_obj": page_obj,
-            "paginator": paginator,
-            "is_paginated": page_obj.has_other_pages(),
-            "query": query,
-            "status_filter": status_filter,
+            "recruiters": recruiters,
+            "recruiter_count": recruiters.count(),
+            "recent_recruiters": recruiters.order_by("-date_joined")[:5],
+            "job_summary": job_summary,
         },
     )
 

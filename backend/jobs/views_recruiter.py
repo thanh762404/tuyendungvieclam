@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -11,6 +12,8 @@ from .models import (
     CompanyProfile,
     Job,
     JobChatMessage,
+    HIRING_CAPACITY_STATUSES,
+    HIRING_PIPELINE_STATUSES,
     PackageTransaction,
     RecruiterAccount,
     SubscriptionPackage,
@@ -44,7 +47,13 @@ def recruiter_profile_view(request):
 
 @login_required
 def recruiter_job_list(request):
-    jobs = Job.objects.filter(recruiter=request.user).order_by("-created_at")
+    jobs = Job.objects.filter(recruiter=request.user).annotate(
+        hired_count=Count(
+            "applications",
+            filter=Q(applications__status__in=HIRING_CAPACITY_STATUSES),
+            distinct=True,
+        )
+    ).order_by("-created_at")
     employer_jobs = Job.objects.filter(recruiter=request.user)
     chat_messages = JobChatMessage.objects.filter(job__in=employer_jobs)
 
@@ -89,17 +98,30 @@ def recruiter_job_list(request):
 
 @login_required
 def mark_job_chat_read(request, pk):
-    if request.method == "POST":
+    if request.method != "POST":
+        return JsonResponse({"status": "error"}, status=400)
+
+    job = get_object_or_404(Job, pk=pk)
+    if request.user == job.recruiter:
         candidate_id = request.POST.get("candidate_id")
-        if candidate_id:
-            JobChatMessage.objects.filter(
-                job_id=pk,
-                sender_id=candidate_id,
-                receiver=request.user,
-                is_read=False,
-            ).update(is_read=True)
-            return JsonResponse({"status": "success"})
-    return JsonResponse({"status": "error"}, status=400)
+        if not candidate_id:
+            return JsonResponse({"status": "error"}, status=400)
+        messages = JobChatMessage.objects.filter(
+            job=job,
+            sender_id=candidate_id,
+            receiver=request.user,
+            is_read=False,
+        )
+    else:
+        messages = JobChatMessage.objects.filter(
+            job=job,
+            sender=job.recruiter,
+            receiver=request.user,
+            is_read=False,
+        )
+
+    messages.update(is_read=True)
+    return JsonResponse({"status": "success"})
 
 
 @login_required
@@ -305,15 +327,29 @@ def job_detail(request, pk):
     job = get_object_or_404(Job, pk=pk)
     return render(request, "jobs/job_detail.html", {"job": job})
 
+@login_required
 def all_approved_candidates_view(request):
-    # Lọc tất cả các ứng viên có trạng thái đã duyệt thuộc các job của nhà tuyển dụng đang đăng nhập
-    # Bạn thay 'approved' hoặc 'Đã duyệt' bằng giá trị status thực tế trong database của bạn
     approved_list = Application.objects.filter(
-        job__recruiter=request.user, 
-        status='approved' 
+        job__recruiter=request.user,
+        status__in=HIRING_PIPELINE_STATUSES,
     ).select_related('job', 'candidate')
     
     context = {
         'approved_list': approved_list
     }
     return render(request, 'jobs/all_approved_candidates.html', context)
+
+
+@login_required
+def job_achieved_candidates_view(request, pk):
+    job = get_object_or_404(Job, pk=pk, recruiter=request.user)
+    approved_list = Application.objects.filter(
+        job=job,
+        status__in=HIRING_PIPELINE_STATUSES,
+    ).select_related('candidate')
+
+    return render(
+        request,
+        'jobs/all_approved_candidates.html',
+        {'approved_list': approved_list, 'job': job},
+    )

@@ -5,6 +5,7 @@ from . import views_admin
 urlpatterns = [
     # Quản lý tin tuyển dụng của Nhà tuyển dụng
     path('recruiter/jobs/', views.recruiter_job_list, name='recruiter_job_list'),
+    path('recruiter/jobs/<int:pk>/achieved-candidates/', views.job_achieved_candidates_view, name='job_achieved_candidates'),
     path('recruiter/jobs/create/', views.job_create, name='job_create'),
     path('recruiter/jobs/<int:pk>/delete/', views.job_delete, name='job_delete'),
     path('recruiter/job/edit/<int:pk>/', views.job_edit, name='job_edit'),
@@ -24,6 +25,7 @@ urlpatterns = [
     path('jobs/<int:pk>/applications/', views.job_applications, name='job_applications'),
     path('jobs/<int:pk>/chat/send/', views.send_job_chat_message, name='send_job_chat_message'),
     path('jobs/<int:pk>/chat/history/', views.get_job_chat_history, name='get_job_chat_history'),
+    path('jobs/<int:pk>/chat/unread-count/', views.get_job_chat_unread_count, name='get_job_chat_unread_count'),
     path('jobs/<int:pk>/chat/mark-read/', views.mark_job_chat_read, name='mark_job_chat_read'),
     path('jobs/<int:pk>/', views.job_detail, name='job_detail'),
     
@@ -31,6 +33,8 @@ urlpatterns = [
     path('custom-admin/', views.custom_admin_dashboard, name='custom_admin_dashboard'),
     path('custom-admin/users/', views.admin_manage_users, name='admin_manage_users'),
     path('custom-admin/user/<int:pk>/delete/', views.admin_delete_user, name='admin_delete_user'),
+    path('custom-admin/user/<int:pk>/recruiter-cv/', views.admin_recruiter_cv, name='admin_recruiter_cv'),
+    path('custom-admin/user/<int:pk>/approve-recruiter/', views.admin_approve_recruiter, name='admin_approve_recruiter'),
     path('custom-admin/jobs/', views.admin_manage_jobs, name='admin_manage_jobs'),
     path('custom-admin/job/<int:pk>/status/', views.admin_update_job_status, name='admin_update_job_status'),
     path('custom-admin/job/<int:pk>/delete/', views.admin_delete_job, name='admin_delete_job'),

@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from .models import User, Profile
+from .skills import invalid_skills_for_major
 from jobs.models import CompanyProfile
 import re
 
@@ -26,6 +27,16 @@ class SignUpForm(UserCreationForm):
         choices=ROLE_CHOICES,
         widget=forms.RadioSelect,
         label='Bạn đăng ký với tư cách là',
+    )
+    recruiter_cv = forms.FileField(
+        required=False,
+        widget=forms.FileInput(
+            attrs={
+                'class': 'form-control',
+                'accept': '.pdf,.doc,.docx',
+            }
+        ),
+        label='CV xác minh nhà tuyển dụng',
     )
     phone = forms.CharField(
         max_length=15,
@@ -72,6 +83,27 @@ class SignUpForm(UserCreationForm):
                 )
         return phone
 
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get('role') == 'candidate':
+            self._validate_major_skills(cleaned_data)
+        elif cleaned_data.get('role') == 'recruiter':
+            recruiter_cv = cleaned_data.get('recruiter_cv')
+            if not recruiter_cv:
+                self.add_error('recruiter_cv', 'Vui lòng tải CV để admin xác minh tài khoản.')
+            elif recruiter_cv.name.rsplit('.', 1)[-1].lower() not in {'pdf', 'doc', 'docx'}:
+                self.add_error('recruiter_cv', 'CV chỉ được dùng định dạng PDF, DOC hoặc DOCX.')
+            elif recruiter_cv.size > 10 * 1024 * 1024:
+                self.add_error('recruiter_cv', 'Dung lượng CV không được vượt quá 10 MB.')
+        return cleaned_data
+
+    def _validate_major_skills(self, cleaned_data):
+        invalid_skills = invalid_skills_for_major(
+            cleaned_data.get('major'), cleaned_data.get('skills')
+        )
+        if invalid_skills:
+            self.add_error('skills', 'Vui lòng chọn kỹ năng thuộc ngành đào tạo đã chọn.')
+
     def save(self, commit=True):
         user = super().save(commit=False)
         role = self.cleaned_data.get('role')
@@ -79,6 +111,8 @@ class SignUpForm(UserCreationForm):
             user.is_candidate = True
         elif role == 'recruiter':
             user.is_recruiter = True
+            user.is_active = False
+            user.recruiter_cv = self.cleaned_data.get('recruiter_cv')
 
         if commit:
             user.save()
@@ -117,6 +151,15 @@ class ProfileUpdateForm(forms.ModelForm):
             'avatar': forms.FileInput(attrs={'class': 'form-control'}),
             'cv_file': forms.FileInput(attrs={'class': 'form-control'}),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        invalid_skills = invalid_skills_for_major(
+            cleaned_data.get('major'), cleaned_data.get('skills')
+        )
+        if invalid_skills:
+            self.add_error('skills', 'Vui lòng chọn kỹ năng thuộc ngành đào tạo đã chọn.')
+        return cleaned_data
 
 
 class CompanyProfileForm(forms.ModelForm):

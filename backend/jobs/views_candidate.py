@@ -2,12 +2,16 @@ from datetime import datetime, timedelta
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.mail import send_mail
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import ApplicationForm
-from .models import Application, Job, JobChatMessage
+from .models import Application, HIRING_CAPACITY_STATUSES, Job, JobChatMessage
+from .services import (
+    send_application_status_email,
+    send_interview_reminder_email,
+)
 
 
 def parse_interview_details(interview_details):
@@ -35,19 +39,6 @@ def build_interview_details(interview_date, interview_time, interview_note):
     if interview_note:
         details.append(f"Nội dung/Địa điểm: {interview_note}")
     return "\n".join(details)
-
-
-def get_recruiter_display_info(recruiter_user):
-    """Hàm hỗ trợ lấy tên hiển thị và email của Nhà tuyển dụng"""
-    employer_profile = getattr(recruiter_user, 'profile', None)
-    
-    # Lấy tên hiển thị của nhà tuyển dụng (ưu tiên full_name/company_name trong profile, nếu không có lấy username)
-    recruiter_name = recruiter_user.username
-    if employer_profile:
-        recruiter_name = getattr(employer_profile, 'company_name', None) or getattr(employer_profile, 'full_name', None) or recruiter_user.username
-        
-    recruiter_email = getattr(employer_profile, 'email', None) or getattr(recruiter_user, 'email', '')
-    return recruiter_name, recruiter_email
 
 
 @login_required
@@ -101,7 +92,7 @@ def update_application_status(request, pk):
     if application.job.recruiter != request.user:
         return render(request, "403.html", status=403)
 
-    # Lấy thông tin lịch phỏng vấn hiện tại để hiển thị lên form GET
+    # Lấy lịch hiện tại để hiển thị trên form.
     parsed = parse_interview_details(application.interview_details)
     interview_date = parsed.get("date", "")
     interview_time = parsed.get("time", "")
@@ -113,50 +104,119 @@ def update_application_status(request, pk):
         interview_time = request.POST.get("interview_time", "").strip()
         interview_note = request.POST.get("interview_note", "").strip()
 
-        # Cập nhật trạng thái đơn ứng tuyển nếu có chọn
-        if status:
+        valid_statuses = {
+            value for value, _ in Application._meta.get_field("status").choices
+        }
+        if status not in valid_statuses:
+            messages.error(request, "Trạng thái hồ sơ không hợp lệ.")
+            return redirect("job_applications", pk=application.job.pk)
+
+        schedule_statuses = {"Approved", "InterviewPassed", "Trial", "Hired"}
+        if status not in schedule_statuses:
+            interview_date = ""
+            interview_time = ""
+            interview_note = ""
+        if status == "Approved" and (not interview_date or not interview_time):
+            messages.error(
+                request,
+                "Khi duyệt phỏng vấn, vui lòng nhập ngày và giờ hẹn để ứng viên nhận được lịch.",
+            )
+            return render(
+                request,
+                "jobs/update_application.html",
+                {
+                    "application": application,
+                    "interview_date": interview_date,
+                    "interview_time": interview_time,
+                    "interview_note": interview_note,
+                    "selected_status": status,
+                    "status_error": "Cần nhập ngày và giờ hẹn trước khi duyệt phỏng vấn.",
+                },
+            )
+
+        with transaction.atomic():
+            job = Job.objects.select_for_update().get(pk=application.job_id)
+            application = Application.objects.select_for_update().get(pk=application.pk)
+            previous_status = application.status
+            if (
+                status in HIRING_CAPACITY_STATUSES
+                and application.status not in HIRING_CAPACITY_STATUSES
+            ):
+                current_hires = Application.objects.filter(
+                    job=job,
+                    status__in=HIRING_CAPACITY_STATUSES,
+                ).count()
+                if current_hires >= job.max_hires:
+                    messages.error(
+                        request,
+                        f'Tin này đã đủ chỉ tiêu nhận {job.max_hires} người. '
+                        'Hãy tăng chỉ tiêu hoặc chuyển một hồ sơ khác khỏi trạng thái thử việc/đã nhận.',
+                    )
+                    return render(
+                        request,
+                        "jobs/update_application.html",
+                        {
+                            "application": application,
+                            "interview_date": interview_date,
+                            "interview_time": interview_time,
+                            "interview_note": interview_note,
+                            "selected_status": status,
+                        },
+                    )
+
             application.status = status
+            application.interview_details = build_interview_details(
+                interview_date,
+                interview_time,
+                interview_note,
+            )
+            application.reminder_sent = False
+            application.save()
 
-        # Xây dựng chuỗi chi tiết lịch phỏng vấn từ form
-        application.interview_details = build_interview_details(
-            interview_date,
-            interview_time,
-            interview_note,
-        )
-        
-        # Reset lại cờ reminder_sent để hệ thống bắt đầu theo dõi thời gian 24h tới
-        application.reminder_sent = False
-        application.save()
+            status_display = application.get_status_display()
+            if previous_status != status:
+                schedule_label = (
+                    "Lịch phỏng vấn"
+                    if status == "Approved"
+                    else "Lịch bắt đầu thử việc/đi làm"
+                )
+                msg_content = (
+                    f"Hồ sơ ứng tuyển vị trí '{job.title}' của bạn đã được cập nhật "
+                    f"trạng thái: {status_display}."
+                )
+                if application.interview_details:
+                    msg_content += (
+                        f"\n{schedule_label}:\n{application.interview_details}"
+                    )
 
-        # ==========================================
-        # 1. TỰ ĐỘNG GỬI TIN NHẮN CHAT CHO ỨNG VIÊN
-        # ==========================================
-        status_display = "Đã duyệt / Phỏng vấn" if status == "Approved" else ("Từ chối" if status == "Rejected" else "Đang chờ duyệt")
-        msg_content = f"Hồ sơ ứng tuyển vị trí '{application.job.title}' của bạn đã được cập nhật trạng thái: {status_display}."
-        if interview_date:
-            t_str = f" lúc {interview_time}" if interview_time else ""
-            msg_content += f"\nLịch hẹn: Ngày {interview_date}{t_str}."
-        if interview_note:
-            msg_content += f"\nNội dung/Địa điểm: {interview_note}"
+                JobChatMessage.objects.create(
+                    job=job,
+                    sender=request.user,
+                    receiver=application.candidate,
+                    sender_name=request.user.username,
+                    receiver_name=application.candidate.username,
+                    message=msg_content,
+                    is_read=False,
+                    is_application_update=True,
+                )
 
-        JobChatMessage.objects.create(
-            job=application.job,
-            sender=request.user,
-            receiver=application.candidate,
-            sender_name=request.user.username,
-            receiver_name=application.candidate.username,
-            message=msg_content,
-            is_read=False
-        )
-
-        # LƯU Ý: Đã lược bỏ việc gửi email ngay tại đây. 
-        # Email nhắc nhở sẽ tự động được gửi khi thời gian đến gần trong vòng 24h tại hàm candidate_applications.
+        if previous_status != status:
+            try:
+                send_application_status_email(application)
+            except Exception as error:
+                messages.warning(
+                    request,
+                    f"Trạng thái đã được lưu và ứng viên vẫn nhận thông báo trong trang web, "
+                    f"nhưng không gửi được email: {error}",
+                )
 
         # Thông báo phản hồi giao diện
         if status == "Approved" and interview_date:
-            messages.success(request, "Đã lưu trạng thái phê duyệt và lịch hẹn thành công (Hệ thống sẽ tự động gửi email nhắc nhở ứng viên trước 24h).")
+            messages.success(request, "Đã lưu trạng thái phê duyệt và lịch hẹn phỏng vấn thành công.")
         elif status == "Rejected":
             messages.info(request, "Đã cập nhật trạng thái từ chối.")
+        elif previous_status == status:
+            messages.success(request, "Thông tin hồ sơ đã được lưu.")
         else:
             messages.success(request, "Đã cập nhật trạng thái ứng viên thành công.")
 
@@ -170,53 +230,45 @@ def update_application_status(request, pk):
             "interview_date": interview_date,
             "interview_time": interview_time,
             "interview_note": interview_note,
+            "selected_status": application.status,
         },
     )
 
 @login_required
 def candidate_applications(request):
     applications = Application.objects.filter(candidate=request.user).order_by("-applied_at")
+    notifications = list(
+        JobChatMessage.objects.filter(
+            receiver=request.user,
+            is_application_update=True,
+            is_read=False,
+        ).select_related("job").order_by("-created_at")
+    )
 
     for app in applications:
-        # Hệ thống quét: Chỉ gửi khi lịch hẹn còn trong vòng 24h tới VÀ chưa từng gửi email nhắc nhở trước đó
         if app.needs_interview_reminder and not app.reminder_sent:
             try:
-                candidate_email = getattr(request.user, 'email', None)
-                if candidate_email:
-                    recruiter_user = app.job.recruiter
-                    recruiter_name, recruiter_email = get_recruiter_display_info(recruiter_user)
+                send_interview_reminder_email(app)
+            except Exception:
+                messages.error(
+                    request,
+                    f"Không gửi được email nhắc lịch cho hồ sơ '{app.job.title}'. "
+                    "Vui lòng kiểm tra cấu hình Gmail SMTP.",
+                )
 
-                    subject = f"[CTJob] Nhắc nhở lịch phỏng vấn sắp tới trong 24h - {app.job.title}"
-                    message = (
-                        f"Xin chào {request.user.username},\n\n"
-                        f"{app.interview_reminder_message}\n\n"
-                        f"Chi tiết lịch hẹn:\n{app.interview_details}\n\n"
-                        f"Vui lòng chuẩn bị kỹ và đến đúng thời gian quy định.\n\n"
-                        f"Trân trọng,\n"
-                        f"Nhà tuyển dụng: {recruiter_name}\n"
-                        f"Email liên hệ: {recruiter_email if recruiter_email else 'Không có'}\n"
-                        f"Hệ thống tuyển dụng CTJob"
-                    )
-
-                    send_mail(
-                        subject=subject,
-                        message=message,
-                        from_email=None,
-                        recipient_list=[candidate_email],
-                        fail_silently=False,
-                    )
-
-                    # Đánh dấu đã gửi thành công để không bị gửi lặp lại
-                    app.reminder_sent = True
-                    app.save(update_fields=['reminder_sent'])
-                    print(f"Đã gửi email nhắc lịch 24h thành công tới ứng viên: {candidate_email}")
-            except Exception as e:
-                print("Lỗi tự động gửi email nhắc lịch phỏng vấn:", e)
+    if notifications:
+        JobChatMessage.objects.filter(
+            pk__in=[notification.pk for notification in notifications],
+            receiver=request.user,
+            is_application_update=True,
+            is_read=False,
+        ).update(is_read=True)
 
     return render(
         request,
         "jobs/candidate_applications.html",
         {
             "applications": applications,
+            "notifications": notifications,
         },
     )

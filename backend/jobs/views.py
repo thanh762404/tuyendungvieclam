@@ -2,6 +2,8 @@ from .views_admin import (
     admin_delete_application,
     admin_delete_job,
     admin_delete_user,
+    admin_approve_recruiter,
+    admin_recruiter_cv,
     admin_manage_applications,
     admin_delete_resolved_contacts,
     admin_manage_jobs,
@@ -20,13 +22,14 @@ from .views_candidate import (
     update_application_status,
     
 )
-from .views_chat import get_job_chat_history, send_job_chat_message
+from .views_chat import get_job_chat_history, get_job_chat_unread_count, send_job_chat_message
 from .views_home import extract_text_from_cv, home_view
 from .views_recruiter import (
     job_clone,
     job_create,
     job_delete,
     job_detail,
+    job_achieved_candidates_view,
     job_edit,
     mark_job_chat_read,
     recruiter_job_list,
@@ -48,15 +51,19 @@ __all__ = [
     "job_clone",
     "job_delete",
     "job_detail",
+    "job_achieved_candidates_view",
     "apply_job",
     "job_applications",
     "update_application_status",
     "candidate_applications",
     "send_job_chat_message",
     "get_job_chat_history",
+    "get_job_chat_unread_count",
     "custom_admin_dashboard",
     "admin_manage_users",
     "admin_delete_user",
+    "admin_approve_recruiter",
+    "admin_recruiter_cv",
     "admin_manage_jobs",
     "admin_update_job_status",
     "admin_delete_job",

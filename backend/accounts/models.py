@@ -5,6 +5,12 @@ from django.contrib.auth.models import AbstractUser
 class User(AbstractUser):
     is_candidate = models.BooleanField(default=False)
     is_recruiter = models.BooleanField(default=False)
+    recruiter_cv = models.FileField(
+        upload_to='recruiter_cvs/',
+        blank=True,
+        null=True,
+        verbose_name='CV xác minh nhà tuyển dụng',
+    )
 
 
 class Profile(models.Model):

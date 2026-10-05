@@ -9,10 +9,4 @@ class Migration(migrations.Migration):
         ('jobs', '0001_initial'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='application',
-            name='interview_details',
-            field=models.TextField(blank=True, null=True, verbose_name='Lịch hẹn và thông tin phỏng vấn trực tiếp'),
-        ),
-    ]
+    operations = []

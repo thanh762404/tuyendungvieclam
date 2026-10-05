@@ -9,15 +9,4 @@ class Migration(migrations.Migration):
         ('jobs', '0010_contactmessage'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='jobchatmessage',
-            name='receiver_name',
-            field=models.CharField(blank=True, max_length=255, null=True, verbose_name='Tên người nhận'),
-        ),
-        migrations.AddField(
-            model_name='jobchatmessage',
-            name='sender_name',
-            field=models.CharField(blank=True, max_length=255, null=True, verbose_name='Tên người gửi'),
-        ),
-    ]
+    operations = []

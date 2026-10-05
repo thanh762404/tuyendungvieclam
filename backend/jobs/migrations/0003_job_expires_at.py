@@ -9,10 +9,4 @@ class Migration(migrations.Migration):
         ('jobs', '0002_application_interview_details'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='job',
-            name='expires_at',
-            field=models.DateTimeField(blank=True, null=True, verbose_name='Hạn nộp hồ sơ'),
-        ),
-    ]
+    operations = []

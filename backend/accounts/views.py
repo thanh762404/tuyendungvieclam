@@ -1,12 +1,11 @@
 from datetime import timedelta
 import os
-from pypdf import PdfReader
-from docx import Document
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -15,73 +14,51 @@ from jobs.models import Application, Job, CompanyProfile
 
 from .forms import ProfileUpdateForm, SignUpForm, UserUpdateForm
 from .models import Profile
-
-def extract_skills_from_file(file_field):
-    """Hàm hỗ trợ đọc file CV (PDF hoặc Word) và trích xuất kỹ năng."""
-    text = ""
-    if not file_field:
-        return []
-        
-    file_extension = os.path.splitext(file_field.name)[1].lower()
-    try:
-        if file_extension == '.pdf':
-            reader = PdfReader(file_field)
-            for page in reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    text += extracted + "\n"
-        elif file_extension in ['.docx', '.doc']:
-            doc = Document(file_field)
-            for para in doc.paragraphs:
-                text += para.text + "\n"
-    except Exception as e:
-        print("Lỗi đọc file CV:", e)
-    
-    text = text.lower()
-    
-    keyword_pool = [
-        'python', 'django', 'tester', 'nodejs', 'reactjs', 'sql', 'java', 'c#', 'php',
-        'data engineering', 'data analysis', 'data analyst', 'business intelligence',
-        'pandas', 'numpy', 'postgresql', 'power bi', 'excel', 'ui/ux', 'figma',
-        'photoshop', 'illustrator', 'marketing', 'sales', 'seo', 'social media',
-        'google ads', 'facebook ads', 'kế toán', 'accounting', 'finance', 'banking',
-        'customer service', 'tiếng anh', 'english', 'hotel', 'tourism', 'devops',
-        'javascript', 'html5', 'css3', 'flask', 'angular', 'vuejs', 'fullstack'
-    ]
-    
-    found_skills = []
-    for skill in keyword_pool:
-        if skill in text:
-            found_skills.append(skill)
-            
-    return found_skills
+from .services import extract_skills_from_file
 
 
 def signup_view(request):
     if request.method == 'POST':
-        form = SignUpForm(request.POST)
+        form = SignUpForm(request.POST, request.FILES)
         if form.is_valid():
-            user = form.save(commit=False)
-            user.date_joined = timezone.now()
-            user.save()
+            try:
+                with transaction.atomic():
+                    user = form.save(commit=False)
+                    user.date_joined = timezone.now()
+                    user.save()
 
-            role = form.cleaned_data.get('role')
-            if role == 'recruiter':
-                CompanyProfile.objects.get_or_create(
-                    user=user,
-                    defaults={
-                        'company_name': user.username,
-                        'phone': form.cleaned_data.get('phone', '')
-                    }
+                    role = form.cleaned_data.get('role')
+                    if role == 'recruiter':
+                        CompanyProfile.objects.get_or_create(
+                            user=user,
+                            defaults={
+                                'company_name': user.username,
+                                'phone': form.cleaned_data.get('phone', '')
+                            }
+                        )
+                    else:
+                        profile, created = Profile.objects.get_or_create(user=user)
+                        profile.phone = form.cleaned_data.get('phone', '')
+                        profile.major = form.cleaned_data.get('major', '')
+                        profile.skills = form.cleaned_data.get('skills', '')
+                        profile.save()
+            except IntegrityError as error:
+                error_text = str(error).casefold()
+                if 'username' not in error_text or not any(
+                    marker in error_text for marker in ('duplicate', 'unique', '1062')
+                ):
+                    raise
+                form.add_error(
+                    'username',
+                    'Tên đăng nhập này đã được sử dụng. Vui lòng chọn tên khác.',
                 )
             else:
-                profile, created = Profile.objects.get_or_create(user=user)
-                profile.phone = form.cleaned_data.get('phone', '')
-                profile.major = form.cleaned_data.get('major', '')
-                profile.skills = form.cleaned_data.get('skills', '')
-                profile.save()
-
-            return redirect('login')
+                if user.is_recruiter:
+                    messages.info(
+                        request,
+                        'Đăng ký thành công. Tài khoản sẽ đăng nhập được sau khi admin duyệt CV.',
+                    )
+                return redirect('login')
     else:
         form = SignUpForm()
     return render(request, 'accounts/signup.html', {'form': form})
@@ -294,12 +271,24 @@ def profile_edit_view(request):
         if request.method == 'POST':
             u_form = UserUpdateForm(request.POST, instance=user)
             p_form = ProfileUpdateForm(request.POST, request.FILES, instance=profile)
+            old_cv_name = profile.cv_file.name if profile.cv_file else ''
+            old_cv_storage = profile.cv_file.storage if profile.cv_file else None
 
             if u_form.is_valid() and p_form.is_valid():
                 user_profile = p_form.save(commit=False)
-                if request.POST.get('cv_file-clear') or ('cv_file' in request.FILES and not request.FILES['cv_file']):
+                cv_was_cleared = bool(request.POST.get('cv_file-clear'))
+                cv_was_uploaded = bool(request.FILES.get('cv_file'))
+                if cv_was_uploaded:
+                    user_profile.cv_skills = ', '.join(
+                        extract_skills_from_file(user_profile.cv_file)
+                    )
+                elif cv_was_cleared:
                     user_profile.cv_file = None
+                    user_profile.cv_skills = ''
                 user_profile.save()
+                new_cv_name = user_profile.cv_file.name if user_profile.cv_file else ''
+                if old_cv_name and old_cv_name != new_cv_name and old_cv_storage:
+                    old_cv_storage.delete(old_cv_name)
                 u_form.save()
                 messages.success(request, "Cập nhật hồ sơ thành công!")
                 return redirect('profile')

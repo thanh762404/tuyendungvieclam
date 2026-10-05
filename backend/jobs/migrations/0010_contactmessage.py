@@ -9,15 +9,4 @@ class Migration(migrations.Migration):
         ('jobs', '0009_remove_job_contact_link'),
     ]
 
-    operations = [
-        migrations.CreateModel(
-            name='ContactMessage',
-            fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100, verbose_name='Họ và tên')),
-                ('email', models.EmailField(max_length=254, verbose_name='Email liên hệ')),
-                ('message', models.TextField(verbose_name='Nội dung')),
-                ('created_at', models.DateTimeField(auto_now_add=True, verbose_name='Thời gian gửi')),
-            ],
-        ),
-    ]
+    operations = []

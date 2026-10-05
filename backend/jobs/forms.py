@@ -1,5 +1,12 @@
 from django import forms
-from .models import Application, CompanyProfile, Job, PackageTransaction
+from accounts.skills import invalid_skills_for_major
+from .models import (
+    HIRING_CAPACITY_STATUSES,
+    Application,
+    CompanyProfile,
+    Job,
+    PackageTransaction,
+)
 
 MAJOR_CHOICES = [
     ('', '-- Chọn ngành đào tạo --'),
@@ -24,6 +31,12 @@ class JobForm(forms.ModelForm):
         widget=forms.HiddenInput(attrs={"id": "id_skills_required"}),
         required=False
     )
+    max_hires = forms.IntegerField(
+        min_value=1,
+        initial=5,
+        widget=forms.NumberInput(attrs={"class": "form-control", "min": 1}),
+        label="Số người tối đa được nhận",
+    )
 
     class Meta:
         model = Job
@@ -32,6 +45,7 @@ class JobForm(forms.ModelForm):
             "company_name",
             "major_required",    
             "skills_required",   
+            "max_hires",
             "location",
             "salary",
             "job_type",
@@ -55,6 +69,28 @@ class JobForm(forms.ModelForm):
                 attrs={"class": "form-control", "type": "datetime-local"}
             ),
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        invalid_skills = invalid_skills_for_major(
+            cleaned_data.get('major_required'), cleaned_data.get('skills_required')
+        )
+        if invalid_skills:
+            self.add_error(
+                'skills_required',
+                'Vui lòng chọn kỹ năng phù hợp với ngành đào tạo của tin tuyển dụng.',
+            )
+        max_hires = cleaned_data.get('max_hires')
+        if self.instance.pk and max_hires is not None:
+            current_hires = self.instance.applications.filter(
+                status__in=HIRING_CAPACITY_STATUSES
+            ).count()
+            if max_hires < current_hires:
+                self.add_error(
+                    'max_hires',
+                    f'Chỉ tiêu không thể thấp hơn số người đang thử việc/đi làm ({current_hires}).',
+                )
+        return cleaned_data
 class CompanyProfileForm(forms.ModelForm):
     """Form giúp nhà tuyển dụng cập nhật thông tin công ty và tải logo riêng"""
 

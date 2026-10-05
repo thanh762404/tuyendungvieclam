@@ -6,7 +6,12 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from google import genai
+from django.utils import timezone
+
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 from .models import Job, JobChatMessage
 
@@ -71,10 +76,17 @@ def send_job_chat_message(request, pk):
                 company_name = job.get_company_name or "Công ty"
                 
                 # Lấy danh sách các công việc khác do nhà tuyển dụng này đăng (tối đa 5 việc)
-                other_jobs = Job.objects.filter(recruiter=job.recruiter).exclude(pk=job.pk)[:5]
+                other_jobs = Job.objects.filter(
+                    recruiter=job.recruiter,
+                    status="Approved",
+                ).filter(
+                    Q(expires_at__isnull=True) | Q(expires_at__gte=timezone.now())
+                ).exclude(pk=job.pk).order_by("-created_at")[:5]
                 if other_jobs.exists():
                     other_jobs_text = "\n".join([
-                        f"- Vị trí: {j.title} | Mức lương: {j.salary} | Địa điểm: {j.location} | Mô tả: {j.description[:100]}..." 
+                        f"- Vị trí: {j.title} | Ngành: {j.major_required or 'Không nêu'} "
+                        f"| Kỹ năng: {j.skills_required or 'Không nêu'} | Mức lương: {j.salary} "
+                        f"| Địa điểm: {j.location} | Mô tả: {j.description[:200]}..."
                         for j in other_jobs
                     ])
                 else:
@@ -87,6 +99,8 @@ def send_job_chat_message(request, pk):
                 Thông tin chi tiết công việc hiện tại này:
                 - Mức lương: {job.salary}
                 - Địa điểm: {job.location}
+                - Ngành yêu cầu: {job.major_required or 'Không nêu'}
+                - Kỹ năng yêu cầu: {job.skills_required or 'Không nêu'}
                 - Mô tả: {job.description}
                 - Yêu cầu: {job.requirements}
 
@@ -94,14 +108,18 @@ def send_job_chat_message(request, pk):
                 {other_jobs_text}
 
                 Quy tắc phản hồi cho AI:
-                1. Nếu ứng viên hỏi về công việc hiện tại (lương, địa điểm, yêu cầu...): Hãy trả lời dựa vào thông tin công việc hiện tại.
-                2. Nếu ứng viên hỏi về các công việc khác, việc làm lương cao khác, hoặc các vị trí khác mà nhà tuyển dụng này đang tuyển: Hãy lọc và giới thiệu các công việc từ "Danh sách các vị trí công việc KHÁC" ở trên một cách lịch sự, đầy đủ thông tin (vị trí, lương, địa điểm).
-                3. Nếu câu hỏi hoàn toàn không liên quan đến tuyển dụng hay việc làm (hỏi chuyện ngoài lề, thời tiết, toán học...): Hãy phản hồi nguyên văn câu: "Xin lỗi ứng viên, câu hỏi này nằm ngoài phạm vi hỗ trợ của công việc. Vui lòng chỉ hỏi các nội dung liên quan đến vị trí tuyển dụng này hoặc đợi nhà tuyển dụng phản hồi trực tiếp."
+                1. Trả lời bằng tiếng Việt, ngắn gọn, lịch sự và chỉ dựa trên dữ liệu được cung cấp.
+                2. Nếu ứng viên hỏi về công việc hiện tại (lương, địa điểm, ngành, kỹ năng, yêu cầu...): Hãy trả lời theo thông tin công việc hiện tại; không tự bịa quyền lợi hoặc điều kiện.
+                3. Nếu ứng viên hỏi vị trí khác: Chỉ giới thiệu tin trong "Danh sách các vị trí công việc KHÁC" ở trên, nêu rõ vị trí, kỹ năng phù hợp, lương và địa điểm.
+                4. Nếu không có tin phù hợp hoặc câu hỏi ngoài tuyển dụng, hãy nói rõ chưa có thông tin và đề nghị nhà tuyển dụng phản hồi; không bịa câu trả lời.
 
                 Tin nhắn của ứng viên: "{message_text}"
                 """
 
                 try:
+                    if genai is None:
+                        raise RuntimeError("Google GenAI SDK is not installed")
+
                     # Lấy API key từ biến môi trường thay vì viết cứng
                     api_key = os.getenv("GOOGLE_API_KEY")
     
@@ -114,7 +132,7 @@ def send_job_chat_message(request, pk):
                     auto_reply = response.text.strip()
                 except Exception as e:
                     print("--- LỖI GỌI GEMINI AI ---:", str(e))
-                    auto_reply = f"Cảm ơn bạn! Nhà tuyển dụng đã nhận được tin nhắn và sẽ phản hồi trong thời gian sớm nhất. (Lỗi AI: {str(e)})"
+                    auto_reply = "Cảm ơn bạn! Nhà tuyển dụng đã nhận được tin nhắn và sẽ phản hồi trong thời gian sớm nhất."
 
                 # Lưu câu trả lời tự động của AI dưới danh nghĩa Nhà tuyển dụng gửi cho ứng viên
                 JobChatMessage.objects.create(
@@ -189,3 +207,22 @@ def get_job_chat_history(request, pk):
         return JsonResponse({"messages": data})
     except Exception as e:
         return JsonResponse({"status": "error", "error": str(e)}, status=500)
+
+
+@login_required
+def get_job_chat_unread_count(request, pk):
+    job = get_object_or_404(Job, pk=pk)
+    if request.user == job.recruiter:
+        unread_count = JobChatMessage.objects.filter(
+            job=job,
+            receiver=request.user,
+            is_read=False,
+        ).count()
+    else:
+        unread_count = JobChatMessage.objects.filter(
+            job=job,
+            sender=job.recruiter,
+            receiver=request.user,
+            is_read=False,
+        ).count()
+    return JsonResponse({"unread_count": unread_count})

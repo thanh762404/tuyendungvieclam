@@ -9,10 +9,4 @@ class Migration(migrations.Migration):
         ('jobs', '0006_companyprofile'),
     ]
 
-    operations = [
-        migrations.AddField(
-            model_name='companyprofile',
-            name='phone',
-            field=models.CharField(blank=True, max_length=15, null=True, verbose_name='Số điện thoại liên hệ'),
-        ),
-    ]
+    operations = []

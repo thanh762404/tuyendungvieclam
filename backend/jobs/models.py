@@ -5,6 +5,10 @@ from django.db import models
 from django.utils import timezone
 
 
+HIRING_CAPACITY_STATUSES = ('InterviewPassed', 'Trial', 'Hired')
+HIRING_PIPELINE_STATUSES = HIRING_CAPACITY_STATUSES
+
+
 class CompanyProfile(models.Model):
     """Bảng thông tin nhà tuyển dụng/công ty để quản lý logo và thương hiệu riêng biệt cho từng tài khoản"""
 
@@ -189,6 +193,10 @@ class Job(models.Model):
     # BỔ SUNG 2 TRƯỜNG NÀY ĐỂ LỌC TÌM KIẾM
     major_required = models.CharField(max_length=255, blank=True, null=True, verbose_name="Ngành yêu cầu")
     skills_required = models.TextField(blank=True, null=True, verbose_name="Kỹ năng yêu cầu")
+    max_hires = models.PositiveIntegerField(
+        default=5,
+        verbose_name="Số người tối đa được nhận",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày đăng")
 
@@ -294,6 +302,9 @@ class Application(models.Model):
         choices=[
             ("Pending", "Đang chờ duyệt"),
             ("Approved", "Đã duyệt / Phỏng vấn"),
+            ("InterviewPassed", "Đạt phỏng vấn"),
+            ("Trial", "Đang thử việc"),
+            ("Hired", "Đã nhận / Đang đi làm"),
             ("Rejected", "Từ chối"),
         ],
         default="Pending",
@@ -433,6 +444,9 @@ class JobChatMessage(models.Model):
     message = models.TextField(verbose_name="Nội dung tin nhắn")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian gửi")
     is_read = models.BooleanField(default=False, verbose_name="Đã đọc")
+    is_application_update = models.BooleanField(
+        default=False, verbose_name="Thông báo cập nhật hồ sơ"
+    )
 
     def __str__(self):
         return f"{self.sender.username} -> {self.receiver.username} ({self.job.title})"
