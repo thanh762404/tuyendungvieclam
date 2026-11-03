@@ -128,19 +128,28 @@
                 <div class="row text-secondary small">
                     <div class="col-md-4">
                         <p class="mb-1">Lượt miễn phí còn lại:</p>
-                        <h5 class="fw-bold text-dark">{{ profile_account.free_posts_left }} tin</h5>
+                        <h5 class="fw-bold text-dark">{{ profile_account.free_posts_left|default:0 }} tin</h5>
                     </div>
                     <div class="col-md-4">
                         <p class="mb-1">Tin trong gói còn lại:</p>
-                        <h5 class="fw-bold text-dark">{{ profile_account.posts_remaining }} tin</h5>
+                        <h5 class="fw-bold text-dark">
+                            {% if profile_account.is_package_active %}
+                                {{ remaining_credits|default:profile_account.posts_remaining }} tin
+                            {% else %}
+                                0 tin
+                            {% endif %}
+                        </h5>
                     </div>
                     <div class="col-md-4">
                         <p class="mb-1">Hạn sử dụng gói:</p>
                         <h5 class="fw-bold text-dark">
                             {% if profile_account.is_package_active and profile_account.package_expires_at %}
-                                {{ profile_account.package_expires_at|date:"d/m/Y H:i" }}
+                                <span class="text-success" style="font-size: 0.9rem; line-height: 1.4; display: block;">
+                                    Từ {{ start_date|date:"d/m/Y H:i" }}<br>
+                                    đến {{ expires_at|default:profile_account.package_expires_at|date:"d/m/Y H:i" }}
+                                </span>
                             {% else %}
-                                Chưa có gói Active
+                                <span class="text-danger">Chưa có gói Active</span>
                             {% endif %}
                         </h5>
                     </div>
@@ -155,11 +164,11 @@
                     {% csrf_token %}
                     
                     <div class="mb-4">
-                        <label class="form-label fw-semibold mb-3">1. Chọn gói cước phù hợp (Bấm vào gói để hiện mã QR tự động điền tiền và nội dung):</label>
+                        <label class="form-label fw-semibold mb-3"> Chọn gói cước phù hợp. Hệ thống sẽ tạo mã thanh toán riêng cho đơn hàng:</label>
                         <div class="row g-4 justify-content-center">
                             {% for pkg in packages %}
                                 <div class="col-md-4">
-                                    <input type="radio" class="btn-check package-radio" name="package_id" id="pkg_{{ pkg.id }}" value="{{ pkg.id }}" data-name="{{ pkg.name }}" data-price="{{ pkg.price }}" autocomplete="off" required {% if request.POST.package_id == pkg.id|stringformat:"s" %}checked{% endif %}>
+                                    <input type="radio" class="btn-check package-radio" name="package_id" id="pkg_{{ pkg.id }}" value="{{ pkg.id }}" data-name="{{ pkg.name }}" data-price="{{ pkg.price }}" autocomplete="off" required {% if active_transaction and active_transaction.package_id == pkg.id or request.POST.package_id == pkg.id|stringformat:"s" %}checked{% endif %} {% if active_transaction %}disabled{% endif %}>
                                     
                                     <label class="card package-card p-3 text-center {% if '1 Năm' in pkg.name or pkg.name == 'Gói 1 Năm' %}special-package{% endif %}" for="pkg_{{ pkg.id }}">
                                         {% if "1 Năm" in pkg.name or pkg.name == 'Gói 1 Năm' %}
@@ -192,36 +201,65 @@
                         </div>
                     </div>
 
-                    <!-- KHUNG HIỆN THỊ VIETQR TỰ ĐỘNG ĐIỀN -->
-                    <div id="payment-info-box" class="p-4 mb-4">
-                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-qrcode text-danger me-2"></i>Quét mã QR để thanh toán tự động</h5>
+                    <!-- QR chỉ được tạo sau khi đơn thanh toán đã được lưu trên máy chủ -->
+                    <div id="payment-info-box" class="p-4 mb-4" {% if active_transaction %}style="display:block"{% endif %}>
+                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-qrcode text-danger me-2"></i>Chuyển khoản và tự động xác nhận qua SePay</h5>
                         <div class="row align-items-center">
                             <div class="col-md-7 small">
-                                <p class="mb-2">Gói đã chọn: <strong id="selected-pkg-name" class="text-danger"></strong></p>
-                                <p class="mb-2">Số tiền: <strong id="selected-pkg-price" class="text-danger fs-5"></strong></p>
-                                <p class="mb-2">Chủ tài khoản: <strong class="text-success">LE CHI THANH</strong></p>
-                                <p class="mb-2">Ngân hàng: <strong>MB Bank</strong> | STK: <strong class="text-primary">0368031812</strong> <i class="fas fa-copy copy-btn ms-1" onclick="copyToClipboard('0368031812', 'Đã sao chép số tài khoản!')" title="Sao chép STK"></i></p>
-                                <p class="mb-0">Nội dung CK: <code id="transfer-syntax" class="bg-white px-2 py-1 border rounded text-danger fw-bold"></code> <i class="fas fa-copy copy-btn ms-1" onclick="copyContent('transfer-syntax', 'Đã sao chép nội dung chuyển khoản!')" title="Sao chép nội dung"></i></p>
+                                <p class="mb-2">Mã giao dịch: <strong class="text-danger">{{ active_transaction.payment_code }}</strong></p>
+                                <p class="mb-2">Gói: <strong id="selected-pkg-name" class="text-danger">{% if active_transaction %}{{ active_transaction.package_name }}{% endif %}</strong></p>
+                                <p class="mb-2">Số tiền chính xác: <strong id="selected-pkg-price" class="text-danger fs-5">{% if active_transaction %}{{ active_transaction.amount|floatformat:0 }}{% endif %}</strong></p>
+                                <p class="mb-2">Chủ tài khoản: <strong class="text-success">{{ sepay_bank_account_name }}</strong></p>
+                                <p class="mb-2">Ngân hàng: <strong>MB Bank</strong> | STK: <strong id="bank-account-number" class="text-primary">{{ sepay_bank_account }}</strong> <i class="fas fa-copy copy-btn ms-1" onclick="copyToClipboard('{{ sepay_bank_account }}', 'Đã sao chép số tài khoản!')" title="Sao chép STK"></i></p>
+                                <p class="mb-2">Nội dung chuyển khoản: <code id="transfer-syntax" class="bg-white px-2 py-1 border rounded text-danger fw-bold">{{ active_transaction.payment_code }}</code> <i class="fas fa-copy copy-btn ms-1" onclick="copyContent('transfer-syntax', 'Đã sao chép nội dung chuyển khoản!')" title="Sao chép nội dung"></i></p>
+                                <p class="mb-0">Trạng thái:
+                                    {% if active_transaction.status == 'approved' %}
+                                        <strong class="text-success">Đã xác nhận và kích hoạt gói</strong>
+                                    {% elif active_transaction.status == 'rejected' %}
+                                        <strong class="text-danger">Giao dịch đã bị từ chối</strong>
+                                    {% else %}
+                                        <strong class="text-warning">Đang chờ SePay xác nhận tiền vào</strong>
+                                    {% endif %}
+                                </p>
                             </div>
                             <div class="col-md-5 text-center mt-3 mt-md-0">
                                 <div class="bg-white p-3 border rounded shadow-sm d-inline-block">
-                                    <!-- MÃ QR ĐỘNG TỰ ĐỘNG NHẬN DIỆN TÀI KHOẢN, SỐ TIỀN VÀ NỘI DUNG -->
+                                    <!-- QR carries the exact transaction amount and unique memo. -->
                                     <img id="dynamic-qr-img" src="" alt="Mã QR Chuyển Khoản" class="img-fluid rounded" style="max-width: 180px;">
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mb-4">
-                        <label for="proof_image" class="form-label fw-semibold">2. Tải lên biên lai / Ảnh chụp màn hình chuyển khoản thành công:</label>
-                        <input type="file" name="proof_image" id="proof_image" class="form-control" accept="image/*" required>
-                        <div class="form-text">Hệ thống sẽ duyệt yêu cầu và kích hoạt gói ngay sau khi xác thực biên lai của bạn.</div>
-                    </div>
-
                     <div class="d-flex justify-content-between align-items-center pt-2">
-                        <button type="submit" class="btn btn-success-custom btn-lg rounded-pill px-5 fw-semibold shadow-sm">Gửi yêu cầu thanh toán</button>
+                        {% if active_transaction %}
+                            <a href="{% url 'buy_package' %}" class="btn btn-outline-secondary rounded-pill px-4">Chọn gói khác</a>
+                        {% else %}
+                            <input type="hidden" name="action" value="create_payment">
+                            <button type="submit" class="btn btn-success-custom btn-lg rounded-pill px-5 fw-semibold shadow-sm">Tạo đơn và mã thanh toán</button>
+                        {% endif %}
                     </div>
                 </form>
+                {% if active_transaction and active_transaction.status != 'rejected' %}
+                    <form method="POST" enctype="multipart/form-data" class="mt-4 border-top pt-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="upload_proof">
+                        <input type="hidden" name="transaction_id" value="{{ active_transaction.pk }}">
+                        <label for="proof_image" class="form-label fw-semibold">
+                            Ảnh biên lai (không bắt buộc{% if active_transaction.status == 'approved' %} - giao dịch đã xác nhận{% endif %}):
+                        </label>
+                        {% if active_transaction.proof_image %}
+                            <p class="small mb-2">Đã tải lên:
+                                <a href="{{ active_transaction.proof_image.url }}" target="_blank" rel="noopener">
+                                    Xem ảnh biên lai
+                                </a>
+                            </p>
+                        {% endif %}
+                        <input type="file" name="proof_image" id="proof_image" class="form-control" accept="image/*">
+                        <div class="form-text">Ảnh sẽ được đính kèm để admin đối chiếu. Gói chỉ tự kích hoạt khi SePay xác nhận đúng mã giao dịch và số tiền; tải ảnh lên không làm thay đổi trạng thái thanh toán.</div>
+                        <button type="submit" class="btn btn-outline-success mt-2">Tải ảnh biên lai</button>
+                    </form>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -244,27 +282,38 @@
             const syntaxCode = document.getElementById("transfer-syntax");
             const qrImg = document.getElementById("dynamic-qr-img");
 
-            const recruiterName = "{{ request.user.username }}";
+            const activePaymentCode = "{{ active_transaction.payment_code|default:''|escapejs }}";
+            {% if active_transaction and active_transaction.status == 'pending' %}
+            const transactionStatusUrl = "{% url 'package_transaction_status' active_transaction.pk %}";
+            window.setInterval(function() {
+                fetch(transactionStatusUrl, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+                    .then(response => {
+                        if (!response.ok) throw new Error('Không thể kiểm tra trạng thái thanh toán.');
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.status === 'approved' || data.status === 'rejected') {
+                            window.location.reload();
+                        }
+                    })
+                    .catch(error => console.error(error));
+            }, 5000);
+            {% endif %}
 
             function updatePaymentInfo(radio) {
-                paymentBox.style.display = "block";
-                
                 let pkgName = radio.getAttribute("data-name");
                 let rawPrice = parseInt(radio.getAttribute("data-price"));
                 let formattedPrice = rawPrice.toLocaleString('vi-VN') + " đ";
 
                 nameSpan.textContent = pkgName;
                 priceSpan.textContent = formattedPrice;
-
-                let memo = `MUA ${pkgName} - ${recruiterName}`;
-                syntaxCode.textContent = memo;
-
-                let bankId = "MB";
-                let accountNumber = "0368031812";
-                let accountName = "LE CHI THANH";
-                
-                let qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNumber}-compact2.jpg?amount=${rawPrice}&addInfo=${encodeURIComponent(memo)}&accountName=${encodeURIComponent(accountName)}`;
-                qrImg.src = qrUrl;
+                if (activePaymentCode) {
+                    syntaxCode.textContent = activePaymentCode;
+                    const accountNumber = "{{ sepay_bank_account|escapejs }}";
+                    const accountName = "{{ sepay_bank_account_name|escapejs }}";
+                    const memo = encodeURIComponent(activePaymentCode);
+                    qrImg.src = `https://img.vietqr.io/image/MB-${accountNumber}-compact2.jpg?amount=${rawPrice}&addInfo=${memo}&accountName=${encodeURIComponent(accountName)}`;
+                }
             }
 
             radios.forEach(function(radio) {
@@ -279,26 +328,12 @@
                 }
             });
 
-            // Bắt sự kiện submit form để hiển thị thông báo thành công dạng popup đẹp mắt
             const paymentForm = document.getElementById("payment-form");
             paymentForm.addEventListener("submit", function(e) {
-                // Kiểm tra xem đã chọn gói và chọn file chưa trước khi hiện popup
                 const selectedRadio = document.querySelector(".package-radio:checked");
-                const fileInput = document.getElementById("proof_image");
-
-                if (selectedRadio && fileInput.files.length > 0) {
-                    e.preventDefault(); // Dừng form lại một nhịp để hiện SweetAlert
-                    Swal.fire({
-                        title: 'Đã gửi yêu cầu thanh toán!',
-                        text: 'Hệ thống đã nhận được biên lai và đang chờ Quản trị viên xét duyệt.',
-                        icon: 'success',
-                        confirmButtonText: 'Đồng ý',
-                        confirmButtonColor: '#00b14f',
-                        timer: 2500,
-                        timerProgressBar: true
-                    }).then((result) => {
-                        paymentForm.submit(); // Cho phép form tiếp tục gửi dữ liệu về server
-                    });
+                if (!selectedRadio) {
+                    e.preventDefault();
+                    Swal.fire('Chưa chọn gói', 'Vui lòng chọn gói trước khi tạo mã thanh toán.', 'info');
                 }
             });
         });

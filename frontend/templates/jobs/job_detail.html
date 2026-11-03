@@ -21,12 +21,13 @@
             position: fixed;
             bottom: 90px;
             right: 20px;
-            width: 350px;
+            width: min(390px, calc(100vw - 28px));
             z-index: 1050;
             display: none;
-            border-radius: 0.75rem;
+            border-radius: 1rem;
             overflow: hidden;
             background: #fff;
+            box-shadow: 0 18px 48px rgba(15, 23, 42, .2);
         }
         .support-bubble-btn {
             position: fixed;
@@ -52,44 +53,93 @@
         }
         .chat-widget-popup {
             position: fixed;
-            bottom: 90px;
+            bottom: 84px;
             right: 20px;
-            width: 350px;
-            max-height: 520px;
+            width: min(410px, calc(100vw - 28px));
+            height: min(650px, calc(100vh - 110px));
             z-index: 1060;
-            border-radius: 0.75rem;
+            border-radius: 1rem;
             overflow: hidden;
             background: #fff;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 18px 48px rgba(15, 23, 42, .22);
+        }
+        .chat-widget-header {
+            background: linear-gradient(135deg, #00a84f, #008c43);
+            padding: 16px 18px;
+        }
+        .chat-assistant-avatar {
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #008c43;
+            background: #fff;
+            font-size: 1rem;
+        }
+        .chat-widget-content {
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
         }
         .chat-messages-container {
-            height: 230px;
+            min-height: 0;
+            flex: 1;
             overflow-y: auto;
-            background-color: #f8f9fa;
+            background:
+                radial-gradient(circle at 1px 1px, rgba(0, 177, 79, .055) 1px, transparent 0) 0 0 / 18px 18px,
+                #f8fafc;
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            overscroll-behavior: contain;
         }
         .chat-message {
-            margin-bottom: 10px;
-            max-width: 80%;
-            padding: 8px 12px;
-            border-radius: 1rem;
-            font-size: 0.9rem;
+            margin: 0 0 12px;
+            max-width: 88%;
+            padding: 10px 13px;
+            border-radius: 16px;
+            font-size: .9rem;
+            line-height: 1.45;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .06);
         }
         .chat-message.me {
-            background-color: var(--primary-color);
+            align-self: flex-end;
+            background: linear-gradient(135deg, #00b14f, #009844);
             color: white;
-            margin-left: auto;
-            border-bottom-right-radius: 0.2rem;
+            border-bottom-right-radius: 5px;
         }
         .chat-message.other {
-            background-color: #e9ecef;
+            align-self: flex-start;
+            background-color: #fff;
             color: #212529;
-            margin-right: auto;
-            border-bottom-left-radius: 0.2rem;
+            border: 1px solid #e8edf0;
+            border-bottom-left-radius: 5px;
+        }
+        .chat-message-time {
+            display: block;
+            text-align: right;
+            margin-top: 5px;
+            font-size: .68rem;
+            opacity: .7;
+        }
+        .chat-typing {
+            align-self: flex-start;
+            color: #64748b;
+            font-size: .78rem;
+            margin: 0 0 10px 4px;
         }
         .chat-suggestions {
             display: flex;
-            gap: 6px;
+            gap: 8px;
             overflow-x: auto;
-            padding: 6px 10px;
+            padding: 10px 12px;
             background: #fff;
             border-top: 1px solid #dee2e6;
             white-space: nowrap;
@@ -102,20 +152,38 @@
             border-radius: 4px;
         }
         .suggestion-chip {
-            background-color: #f1f3f5;
-            color: #495057;
-            border: 1px solid #ced4da;
+            background-color: #f1f8f4;
+            color: #087c3e;
+            border: 1px solid #dcefe4;
             border-radius: 1rem;
-            padding: 4px 10px;
-            font-size: 0.75rem;
+            padding: 6px 11px;
+            font-size: .75rem;
             cursor: pointer;
             transition: all 0.2s;
             flex-shrink: 0;
         }
         .suggestion-chip:hover {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
+            background-color: #dff3e7;
+        }
+        #chatForm .form-control {
+            min-height: 42px;
+            border-radius: 22px 0 0 22px;
+            padding-left: 15px;
+        }
+        #chatForm .btn {
+            min-width: 46px;
+            border-radius: 0 22px 22px 0;
+        }
+        @media (max-width: 480px) {
+            .chat-widget-popup {
+                right: 14px;
+                bottom: 76px;
+                height: min(620px, calc(100vh - 92px));
+            }
+            .support-widget-popup {
+                right: 14px;
+                bottom: 76px;
+            }
         }
         .job-detail-card {
             border: none;
@@ -139,7 +207,10 @@
             <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
             <div class="d-flex align-items-center">
                 {% if user.is_authenticated %}
-                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <span class="text-white me-3 d-none d-sm-inline">
+    Xin chào, 
+    <strong>{{ user.display_name }}</strong>
+</span>
                     <form action="{% url 'logout' %}" method="post" class="d-inline">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
@@ -231,6 +302,7 @@
     <button class="btn support-bubble-btn shadow" id="toggleChatBtn" title="Hỗ trợ tuyển dụng">
         <i class="fas fa-headset fs-4"></i>
         <span class="support-label">Hỗ trợ</span>
+        <span id="chatUnreadBadge" class="badge rounded-pill bg-danger position-absolute top-0 start-100 translate-middle {% if not chat_unread_count %}d-none{% endif %}">{{ chat_unread_count }}</span>
     </button>
 
     <div class="card support-widget-popup shadow-lg border-0" id="chatPopupBox">
@@ -238,17 +310,17 @@
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <h6 class="mb-1 fw-bold"><i class="fas fa-headset me-2"></i>Trung tâm hỗ trợ ứng viên</h6>
-                    <p class="mb-0 small text-white-50">CTJob phản hồi trong vòng 24h</p>
+                    <p class="mb-0 small text-white-50">Trợ lý AI tuyển dụng · phản hồi nhanh</p>
                 </div>
                 <button type="button" class="btn-close btn-close-white" id="closeChatBtn"></button>
             </div>
             
             <div class="d-flex align-items-center mt-3 bg-white text-dark p-2 rounded-3 shadow-sm">
                 <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px; font-weight: bold;">
-                    {{ job.recruiter.username|slice:":1"|upper }}
+                    {{ job.get_company_name|slice:":1"|upper }}
                 </div>
                 <div>
-                    <h6 class="mb-0 fs-6 fw-bold text-success">{{ job.recruiter.username }}</h6>
+                    <h6 class="mb-0 fs-6 fw-bold text-success">{{ job.get_company_name }}</h6>
                     <small class="text-muted" style="font-size: 0.75rem;">Nhà tuyển dụng công việc này</small>
                 </div>
             </div>
@@ -292,44 +364,48 @@
     </div>
 
     <div class="card chat-widget-popup shadow-lg border-0" id="miniChatBox" style="display: none;">
-        <div class="card-header text-white d-flex justify-content-between align-items-center py-2" style="background-color: var(--primary-color);">
-            <h6 class="mb-0"><i class="fas fa-comments me-2"></i>Chat với: {{ job.recruiter.username }}</h6>
-            <button type="button" class="btn-close btn-close-white btn-sm" id="closeMiniChat"></button>
+        <div class="chat-widget-header text-white d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <div class="chat-assistant-avatar"><i class="fas fa-robot"></i></div>
+                <div>
+                    <h6 class="mb-0 fw-bold">{{ job.get_company_name }}</h6>
+                    <small class="text-white-50"><i class="fas fa-circle me-1" style="font-size: .48rem;"></i>Trợ lý AI · trả lời nhanh</small>
+                </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white btn-sm" id="closeMiniChat" aria-label="Đóng chat"></button>
         </div>
         
-        <div class="bg-light px-3 py-2 border-bottom d-flex align-items-center justify-content-between" style="font-size: 0.8rem;">
-            <a href="tel:0368031812" class="text-decoration-none text-primary fw-semibold">
-                <i class="fas fa-phone-alt me-1"></i> Gọi: 0368031812
-            </a>
-            {% if job.contact_link %}
-            <a href="{{ job.contact_link }}" target="_blank" class="text-decoration-none text-success fw-semibold">
-                <i class="fab fa-whatsapp me-1"></i> Zalo <i class="fas fa-external-link-alt" style="font-size: 0.65rem;"></i>
-            </a>
-            {% endif %}
-        </div>
+        <div class="chat-widget-content">
+            <div class="px-3 py-2 bg-white border-bottom d-flex align-items-center justify-content-between small">
+                <span class="text-muted"><i class="fas fa-briefcase text-success me-1"></i>{{ job.title }}</span>
+            </div>
 
-        <div class="card-body chat-messages-container p-3" id="chatMessagesArea">
-            <div class="text-center text-muted small my-auto">Đang tải lịch sử trò chuyện...</div>
-        </div>
+            <div class="chat-messages-container p-3" id="chatMessagesArea" aria-live="polite">
+                <div class="text-center text-muted small my-auto">Đang tải lịch sử trò chuyện...</div>
+            </div>
 
-        <div class="chat-suggestions">
-            <span class="suggestion-chip">Lịch phỏng vấn dự kiến khi nào ạ?</span>
-            <span class="suggestion-chip">Công việc này có yêu cầu kinh nghiệm không?</span>
-            <span class="suggestion-chip">Quy trình tuyển dụng gồm mấy vòng ạ?</span>
-            <span class="suggestion-chip">Ứng tuyển vị trí này cần chuẩn bị hồ sơ gì?</span>
-        </div>
+            <div class="chat-suggestions" aria-label="Câu hỏi gợi ý">
+                <span class="small text-muted align-self-center">Chạm để hỏi nhanh:</span>
+                <button type="button" class="suggestion-chip">Mức lương vị trí này?</button>
+                <button type="button" class="suggestion-chip">Yêu cầu kinh nghiệm vị trí này?</button>
+                <button type="button" class="suggestion-chip">Địa điểm làm việc của vị trí này?</button>
+            </div>
 
-        <div class="card-footer bg-white p-2">
-            <form id="chatForm" class="input-group">
-                {% csrf_token %}
-                <input type="text" id="chatInputMessage" class="form-control form-control-sm" placeholder="Nhập tin nhắn..." autocomplete="off" required>
-                <button class="btn btn-success btn-sm" type="submit" style="background-color: var(--primary-color);"><i class="fas fa-paper-plane"></i></button>
-            </form>
+            <div class="card-footer bg-white px-3 py-3 border-0">
+                <form id="chatForm" class="input-group">
+                    {% csrf_token %}
+                    <input type="text" id="chatInputMessage" class="form-control" placeholder="Nhập câu hỏi của bạn..." autocomplete="off" maxlength="1000" required>
+                    <button class="btn btn-success" type="submit" style="background-color: var(--primary-color);" aria-label="Gửi tin nhắn"><i class="fas fa-paper-plane"></i></button>
+                </form>
+                <div class="text-center text-muted mt-2" style="font-size: .68rem;">AI trả lời dựa trên thông tin tuyển dụng</div>
+            </div>
         </div>
     </div>
 
     <script>
         const chatHistoryUrl = "{% url 'get_job_chat_history' job.pk %}";
+        const chatUnreadUrl = "{% url 'get_job_chat_unread_count' job.pk %}";
+        const chatMarkReadUrl = "{% url 'mark_job_chat_read' job.pk %}";
         const sendChatMessageUrl = "{% url 'send_job_chat_message' job.pk %}";
 
         const toggleChatBtn = document.getElementById('toggleChatBtn');
@@ -341,8 +417,10 @@
         const chatMessagesArea = document.getElementById('chatMessagesArea');
         const chatForm = document.getElementById('chatForm');
         const chatInputMessage = document.getElementById('chatInputMessage');
+        const chatUnreadBadge = document.getElementById('chatUnreadBadge');
 
         let isMenuOpen = false;
+        let isSendingMessage = false;
 
         toggleChatBtn.addEventListener('click', function() {
             isMenuOpen = !isMenuOpen;
@@ -362,66 +440,135 @@
         openDirectChat.addEventListener('click', function() {
             chatPopupBox.style.display = 'none';
             isMenuOpen = false;
-            miniChatBox.style.display = 'block';
+            miniChatBox.style.display = 'flex';
+            markChatRead();
             fetchChatHistory();
+            chatInputMessage.focus();
         });
 
+        function updateUnreadBadge() {
+            fetch(chatUnreadUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const unreadCount = Number(data.unread_count || 0);
+                    chatUnreadBadge.textContent = unreadCount;
+                    chatUnreadBadge.classList.toggle('d-none', unreadCount === 0);
+                })
+                .catch(err => console.error('Lỗi kiểm tra tin nhắn chưa đọc:', err));
+        }
+
+        function markChatRead() {
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            return fetch(chatMarkReadUrl, {method: 'POST', body: formData})
+                .then(() => updateUnreadBadge())
+                .catch(err => console.error('Lỗi đánh dấu tin nhắn đã đọc:', err));
+        }
+
         function sendChatMessage(messageText) {
-            if (!messageText || !messageText.trim()) return;
+            if (!messageText || !messageText.trim() || isSendingMessage) return;
 
             const submitBtn = chatForm.querySelector('button[type="submit"]');
+            const trimmedMessage = messageText.trim();
+            isSendingMessage = true;
             submitBtn.disabled = true;
+            chatInputMessage.value = '';
+            addChatMessage({
+                is_me: true,
+                message: trimmedMessage,
+                created_at: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})
+            });
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'chat-typing';
+            typingIndicator.textContent = 'Trợ lý AI đang trả lời...';
+            chatMessagesArea.appendChild(typingIndicator);
+            chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
 
             const formData = new FormData();
-            formData.append('message', messageText.trim());
+            formData.append('message', trimmedMessage);
             formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
 
             return fetch(sendChatMessageUrl, {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => response.json().then(data => ({response, data})))
+            .then(({response, data}) => {
+                if (!response.ok) throw new Error(data.error || 'Có lỗi xảy ra.');
+                return data;
+            })
             .then(data => {
-                submitBtn.disabled = false;
+                typingIndicator.remove();
                 if (data.status === 'success') {
-                    chatInputMessage.value = '';
                     fetchChatHistory();
                     return true;
                 }
-                alert(data.error || 'Có lỗi xảy ra.');
+                addChatMessage({
+                    is_me: false,
+                    message: data.error || 'Không thể gửi tin nhắn. Vui lòng thử lại.',
+                    created_at: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})
+                });
                 return false;
             })
             .catch(err => {
-                submitBtn.disabled = false;
                 console.error('Lỗi gửi tin nhắn:', err);
-                alert('Có lỗi khi gửi tin nhắn. Vui lòng thử lại.');
+                typingIndicator.remove();
+                addChatMessage({
+                    is_me: false,
+                    message: err.message || 'Không thể gửi tin nhắn. Vui lòng thử lại.',
+                    created_at: new Date().toLocaleTimeString('vi-VN', {hour: '2-digit', minute: '2-digit'})
+                });
                 return false;
+            })
+            .finally(() => {
+                isSendingMessage = false;
+                submitBtn.disabled = false;
+                chatInputMessage.focus();
             });
         }
 
         document.querySelectorAll('.suggestion-chip').forEach(chip => {
             chip.addEventListener('click', function() {
-                const suggestedText = this.textContent;
-                sendChatMessage(suggestedText);
+                if (isSendingMessage) return;
+                chatInputMessage.value = this.textContent.trim();
+                sendChatMessage(chatInputMessage.value);
             });
         });
 
+        function addChatMessage(msg) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${msg.is_me ? 'me' : 'other'}`;
+            const text = document.createElement('div');
+            text.textContent = msg.message;
+            const time = document.createElement('span');
+            time.className = 'chat-message-time';
+            time.textContent = msg.created_at;
+            messageDiv.append(text, time);
+            chatMessagesArea.appendChild(messageDiv);
+            chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+        }
+
         function fetchChatHistory() {
             fetch(chatHistoryUrl)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw new Error('Không thể tải lịch sử chat.');
+                    return response.json();
+                })
                 .then(data => {
+                    if (isSendingMessage) return;
                     chatMessagesArea.innerHTML = '';
                     if (data.messages.length === 0) {
-                        chatMessagesArea.innerHTML = '<div class="text-center text-muted small py-4">Chưa có tin nhắn nào. Hãy chọn câu hỏi gợi ý phía dưới hoặc nhập tin nhắn cho nhà tuyển dụng!</div>';
+                        const emptyState = document.createElement('div');
+                        emptyState.className = 'text-center text-muted small my-auto px-3';
+                        emptyState.textContent = 'Chưa có tin nhắn nào. Chọn câu hỏi gợi ý hoặc nhập câu hỏi về công việc.';
+                        chatMessagesArea.appendChild(emptyState);
                         return;
                     }
-                    data.messages.forEach(msg => {
-                        const messageDiv = document.createElement('div');
-                        messageDiv.className = `chat-message ${msg.is_me ? 'me' : 'other'}`;
-                        messageDiv.innerHTML = `<div>${msg.message}</div><div class="text-end" style="font-size: 0.7rem; opacity: 0.7;">${msg.created_at}</div>`;
-                        chatMessagesArea.appendChild(messageDiv);
-                    });
+                    data.messages.forEach(addChatMessage);
                     chatMessagesArea.scrollTop = chatMessagesArea.scrollHeight;
+                    if (miniChatBox.style.display === 'flex') {
+                        markChatRead();
+                    }
                 })
                 .catch(err => console.error('Lỗi tải tin nhắn:', err));
         }
@@ -430,6 +577,15 @@
             e.preventDefault();
             sendChatMessage(chatInputMessage.value);
         });
+
+        updateUnreadBadge();
+        window.setInterval(function() {
+            if (document.hidden) return;
+            updateUnreadBadge();
+            if (miniChatBox.style.display === 'flex' && !isSendingMessage) {
+                fetchChatHistory();
+            }
+        }, 5000);
     </script>
     {% endif %}
 

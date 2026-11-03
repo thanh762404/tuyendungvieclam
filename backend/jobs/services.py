@@ -2,7 +2,16 @@ from django.core.mail import send_mail
 from django.conf import settings
 
 
+def _require_gmail_password():
+    if not settings.EMAIL_HOST_PASSWORD:
+        raise RuntimeError(
+            "EMAIL_HOST_PASSWORD chưa được cấu hình. "
+            "Hãy thêm Gmail App Password vào backend/.env rồi khởi động lại ứng dụng."
+        )
+
+
 def send_application_status_email(application):
+    _require_gmail_password()
     candidate_email = application.candidate.email
     if not candidate_email:
         raise ValueError(
@@ -17,7 +26,7 @@ def send_application_status_email(application):
         else "Lịch bắt đầu thử việc/đi làm"
     )
     message = (
-        f"Xin chào {application.candidate.username},\n\n"
+        f"Xin chào {application.candidate.display_name},\n\n"
         f"Hồ sơ ứng tuyển vị trí '{application.job.title}' tại {company_name} "
         f"đã được cập nhật trạng thái: {status_display}."
     )
@@ -43,6 +52,7 @@ def send_interview_reminder_email(application):
     if application.reminder_sent or not application.needs_interview_reminder:
         return False
 
+    _require_gmail_password()
     candidate_email = application.candidate.email
     if not candidate_email:
         raise ValueError(
@@ -55,7 +65,7 @@ def send_interview_reminder_email(application):
         f"tại {company_name}"
     )
     message = (
-        f"Xin chào {application.candidate.username},\n\n"
+        f"Xin chào {application.candidate.display_name},\n\n"
         f"{application.interview_reminder_message}\n\n"
         f"Chi tiết lịch hẹn:\n{application.interview_details}\n\n"
         f"Vui lòng sắp xếp thời gian có mặt đúng giờ.\n\n"

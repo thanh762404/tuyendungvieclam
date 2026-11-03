@@ -2,9 +2,11 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Đăng nhập - CTJob</title>
+    <title>Đăng nhập hệ thống - CTJob</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <script>
         tailwind.config = {
             theme: {
@@ -18,82 +20,140 @@
         }
     </script>
 </head>
-<body class="bg-gray-50 flex items-center justify-center min-h-screen">
-    
-    <div class="bg-white p-8 rounded-2xl shadow-sm w-full max-w-md border border-gray-100">
-        <!-- Logo / Tiêu đề -->
-        <div class="text-center mb-6">
-            <a href="{% url 'home' %}" class="inline-flex items-center justify-center w-12 h-12 bg-primary text-white rounded-full shadow-md mb-2 text-xl">
-                <i class="fas fa-briefcase"></i>
+<body class="bg-gray-100 flex flex-col min-h-screen">
+
+    <!-- Header phía trên màu xanh lá đồng bộ thương hiệu -->
+    <header class="bg-gradient-to-r from-primary to-emerald-700 text-white py-4 shadow-md w-full">
+        <div class="max-w-7xl mx-auto px-4 flex justify-center items-center">
+            <a href="{% url 'home' %}" class="flex items-center gap-3 text-xl font-bold tracking-wide">
+                <span class="w-10 h-10 bg-white text-primary rounded-full flex items-center justify-center shadow-sm">
+                    <i class="fas fa-briefcase"></i>
+                </span>
+                <span>CTJOB - HỆ THỐNG GỢI Ý & TÌM KIẾM VIỆC LÀM</span>
             </a>
-            <h2 class="text-2xl font-bold text-gray-800">Đăng nhập hệ thống</h2>
-            <p class="text-sm text-gray-500 mt-1">Chào mừng bạn quay trở lại với CTJob</p>
         </div>
+    </header>
 
-        <div class="relative mb-5">
-            <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-gray-200"></div>
-            </div>
-            <div class="relative flex justify-center text-xs uppercase">
-                <span class="bg-white px-3 text-gray-400">tiếp tục với đăng nhập</span>
-            </div>
-        </div>
-
-        <!-- Form đăng nhập -->
-        <form method="post" class="space-y-4">
-            {% csrf_token %}
+    <!-- Nội dung chính chia 2 cột -->
+    <div class="flex-1 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div class="bg-white w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden flex flex-col lg:flex-row border border-gray-100">
             
-            {% if form.non_field_errors %}
-            <div class="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 mb-3">
-                {{ form.non_field_errors }}
-            </div>
-            {% endif %}
-
-            <!-- Django Form Fields -->
-            <div class="django-form-fields space-y-3">
-                {{ form.as_p }}
+            <!-- Cột trái: Hình ảnh minh họa công việc sinh động -->
+            <div class="lg:w-1/2 relative bg-cover bg-center min-h-[300px] lg:min-h-[500px] flex flex-col justify-end p-8 text-white" style="background-image: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,177,79,0.3)), url('https://images.unsplash.com/photo-1521737852567-6949f3f9f2b5?auto=format&fit=crop&w=1000&q=80');">
+                <div class="relative z-10">
+                    <h2 class="text-2xl lg:text-3xl font-bold mb-2">Chào mừng trở lại!</h2>
+                    <p class="text-sm text-gray-200">Đăng nhập để khám phá hàng ngàn cơ hội việc làm và quản lý hồ sơ chuyên nghiệp của bạn.</p>
+                </div>
             </div>
 
-            <button type="submit" class="w-full bg-primary text-white py-3 rounded-full hover:bg-primary-hover font-semibold transition duration-200 shadow-sm">
-                Đăng nhập
-            </button>
-        </form>
+            <!-- Cột phải: Form đăng nhập -->
+            <div class="lg:w-1/2 p-8 sm:p-10 flex flex-col justify-center">
+                <div class="text-center mb-6">
+                    <h3 class="text-2xl font-bold text-gray-800">Đăng nhập hệ thống</h3>
+                    <p class="text-sm text-gray-500 mt-1">Nhập thông tin tài khoản của bạn để tiếp tục</p>
+                </div>
 
-        <!-- Link đăng ký & Trang chủ -->
-        <div class="text-center mt-6 space-y-2">
-            <p class="text-sm text-gray-600">
-                Chưa có tài khoản? <a href="{% url 'signup' %}" class="text-primary font-semibold hover:underline">Đăng ký ngay</a>
-            </p>
-            <div>
-                <a href="{% url 'home' %}" class="text-xs text-gray-400 hover:text-gray-600 transition">
-                    <i class="fas fa-arrow-left mr-1"></i> Quay lại trang chủ
-                </a>
+                {% if messages %}
+                <div class="space-y-2 mb-5 max-h-60 overflow-y-auto pr-1" aria-label="Thông báo">
+                    {% for message in messages %}
+                    <div class="login-message flex items-start justify-between gap-3 {% if message.tags == 'success' %}bg-green-50 text-green-700 border-green-100{% elif message.tags == 'error' %}bg-red-50 text-red-700 border-red-100{% else %}bg-blue-50 text-blue-700 border-blue-100{% endif %} text-sm p-3 rounded-xl border" role="status">
+                        <span class="min-w-0 break-words">{{ message }}</span>
+                        <button type="button" class="shrink-0 text-current opacity-60 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-current rounded" aria-label="Đóng thông báo" onclick="this.closest('.login-message').remove()">
+                            <i class="fas fa-times" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="post" class="space-y-4">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100 mb-3">
+                        {{ form.non_field_errors }}
+                    </div>
+                    {% endif %}
+
+                    <!-- Email đăng nhập -->
+                    <div>
+                        <label for="id_username" class="block text-sm font-semibold text-gray-700 mb-1.5">Email đăng nhập</label>
+                        <input type="email" name="username" id="id_username" required
+                               class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm bg-gray-50/50"
+                               placeholder="Nhập địa chỉ email của bạn...">
+                        {% if form.username.errors %}
+                        <div class="text-xs text-red-500 mt-1 space-y-1">
+                            {{ form.username.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Mật khẩu (Có icon con mắt) -->
+                    <div>
+                        <label for="id_password" class="block text-sm font-semibold text-gray-700 mb-1.5">Mật khẩu</label>
+                        <div class="relative">
+                            <input type="password" name="password" id="id_password" required
+                                   class="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm bg-gray-50/50"
+                                   placeholder="••••••••">
+                            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none">
+                                <i id="eye-icon" class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        {% if form.password.errors %}
+                        <div class="text-xs text-red-500 mt-1 space-y-1">
+                            {{ form.password.errors }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Ghi nhớ & Quên mật khẩu (Trỏ đến trang password_reset) -->
+                    <div class="flex items-center justify-between text-sm">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="remember_me" class="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary">
+                            <span class="text-gray-600">Nhớ tài khoản</span>
+                        </label>
+                        <a href="{% url 'password_reset' %}" class="text-primary font-semibold hover:underline">Quên mật khẩu?</a>
+                    </div>
+
+                    <button type="submit" class="w-full bg-primary text-white py-3 rounded-full hover:bg-primary-hover font-semibold transition duration-200 shadow-sm mt-2">
+                        Đăng nhập
+                    </button>
+                </form>
+
+                <!-- Link chuyển hướng -->
+                <div class="text-center mt-6 space-y-2 border-t pt-4">
+                    <p class="text-sm text-gray-600">
+                        Chưa có tài khoản? <a href="{% url 'signup' %}" class="text-primary font-semibold hover:underline">Đăng ký ngay</a>
+                    </p>
+                    <div>
+                        <a href="{% url 'home' %}" class="text-xs text-gray-400 hover:text-gray-600 transition">
+                            <i class="fas fa-arrow-left mr-1"></i> Quay lại trang chủ
+                        </a>
+                    </div>
+                </div>
             </div>
+
         </div>
     </div>
 
-    <!-- Script tự động áp dụng class Tailwind cho các input của Django -->
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- Script ẩn/hiện mật khẩu -->
     <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const inputs = document.querySelectorAll("input, select, textarea");
-            inputs.forEach(input => {
-                input.classList.add(
-                    "w-full", "px-4", "py-2.5", "border", "border-gray-200", 
-                    "rounded-xl", "focus:outline-none", "focus:ring-2", 
-                    "focus:ring-[#00b14f]", "focus:border-transparent", "text-sm", "bg-gray-50/50"
-                );
-            });
-
-            const labels = document.querySelectorAll("form label");
-            labels.forEach(label => {
-                label.classList.add("block", "text-sm", "font-semibold", "text-gray-700", "mb-1.5");
-            });
-
-            const errorLists = document.querySelectorAll(".errorlist");
-            errorLists.forEach(ul => {
-                ul.classList.add("text-xs", "text-red-500", "mt-1", "list-disc", "list-inside", "space-y-1");
-            });
-        });
+        function togglePasswordVisibility() {
+            const passwordInput = document.getElementById('id_password');
+            const eyeIcon = document.getElementById('eye-icon');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                eyeIcon.classList.remove('fa-eye');
+                eyeIcon.classList.add('fa-eye-slash');
+            } else {
+                passwordInput.type = 'password';
+                eyeIcon.classList.remove('fa-eye-slash');
+                eyeIcon.classList.add('fa-eye');
+            }
+        }
     </script>
 </body>
 </html>

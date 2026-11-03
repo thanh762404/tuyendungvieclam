@@ -28,6 +28,35 @@ class SignUpForm(UserCreationForm):
         widget=forms.RadioSelect,
         label='Bạn đăng ký với tư cách là',
     )
+    company_name = forms.CharField(
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Ví dụ: Công Ty TNHH CT',
+            }
+        ),
+        label='Tên công ty / Doanh nghiệp',
+    )
+    company_address = forms.CharField(
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                'class': 'form-control',
+                'placeholder': 'Nhập địa chỉ trụ sở công ty',
+            }
+        ),
+        label='Địa chỉ công ty',
+    )
+    company_website = forms.URLField(
+        required=False,
+        widget=forms.URLInput(
+            attrs={'class': 'form-control', 'placeholder': 'https://'}
+        ),
+        label='Website công ty',
+    )
     recruiter_cv = forms.FileField(
         required=False,
         widget=forms.FileInput(
@@ -42,9 +71,30 @@ class SignUpForm(UserCreationForm):
         max_length=15,
         required=True,
         widget=forms.TextInput(
-            attrs={'placeholder': 'Số điện thoại', 'class': 'form-control'}
+            attrs={
+                'placeholder': 'Số điện thoại ',
+                'class': 'form-control',
+                'maxlength': '10',
+                'inputmode': 'numeric',
+            }
         ),
         label='Số điện thoại',
+    )
+
+    # Thêm trường Ngày sinh và Địa chỉ (dùng chung giao diện, phân tách xử lý khi save)
+    birth_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(
+            attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }
+        ),
+        label='Ngày sinh',
+    )
+    address = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(), # Nhận giá trị chuỗi địa chỉ ghép từ các dropdown ở Frontend
     )
 
     major = forms.ChoiceField(
@@ -68,26 +118,49 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        fields = UserCreationForm.Meta.fields + (
+        # Bỏ 'username' khỏi danh sách hiển thị form, chỉ giữ lại các trường cần thiết
+        fields = (
             'email',
             'first_name',
             'last_name',
         )
 
     def clean_phone(self):
-        phone = self.cleaned_data.get('phone')
+        phone = (self.cleaned_data.get('phone') or '').strip()
         if phone:
-            if not phone.isdigit() or len(phone) != 10:
+            if not re.fullmatch(r'0[0-9]{9}', phone):
                 raise forms.ValidationError(
-                    'Số điện thoại phải bao gồm đúng 10 chữ số và không chứa ký tự chữ!'
+                    'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng số 0 (ví dụ: 0912345678).'
                 )
         return phone
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['email'].required = True
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip()
+        if User.objects.filter(email__iexact=email).exists():
+            raise forms.ValidationError(
+                'Email này đã được đăng ký. Vui lòng dùng email khác hoặc đăng nhập.'
+            )
+        return email
+
     def clean(self):
         cleaned_data = super().clean()
-        if cleaned_data.get('role') == 'candidate':
+        role = cleaned_data.get('role')
+        
+        if role == 'candidate':
             self._validate_major_skills(cleaned_data)
-        elif cleaned_data.get('role') == 'recruiter':
+        elif role == 'recruiter':
+            company_name = (cleaned_data.get('company_name') or '').strip()
+            company_address = (cleaned_data.get('company_address') or '').strip()
+            cleaned_data['company_name'] = company_name
+            cleaned_data['company_address'] = company_address
+            if not company_name:
+                self.add_error('company_name', 'Vui lòng nhập tên công ty.')
+            if not company_address:
+                self.add_error('company_address', 'Vui lòng nhập địa chỉ công ty.')
             recruiter_cv = cleaned_data.get('recruiter_cv')
             if not recruiter_cv:
                 self.add_error('recruiter_cv', 'Vui lòng tải CV để admin xác minh tài khoản.')
@@ -105,7 +178,13 @@ class SignUpForm(UserCreationForm):
             self.add_error('skills', 'Vui lòng chọn kỹ năng thuộc ngành đào tạo đã chọn.')
 
     def save(self, commit=True):
+        # Gọi super().save(commit=False) để UserCreationForm tự động xử lý và băm mật khẩu từ form
         user = super().save(commit=False)
+        
+        # Gán ngầm định username = email để hệ thống Django Authentication hoạt động bình thường
+        email = self.cleaned_data.get('email')
+        user.username = email
+        
         role = self.cleaned_data.get('role')
         if role == 'candidate':
             user.is_candidate = True
@@ -115,26 +194,44 @@ class SignUpForm(UserCreationForm):
             user.recruiter_cv = self.cleaned_data.get('recruiter_cv')
 
         if commit:
-            user.save()
-            Profile.objects.create(
-                user=user,
-                phone=self.cleaned_data.get('phone'),
-                skills=self.cleaned_data.get('skills'),
-                major=self.cleaned_data.get('major'),
-            )
+            user.save() # Lúc này Django sẽ lưu cả mật khẩu đã được mã hóa vào bảng accounts_user
+            
+            # Phân tách dữ liệu lưu trữ tùy theo vai trò đăng ký
+            if role == 'candidate':
+                Profile.objects.create(
+                    user=user,
+                    phone=self.cleaned_data.get('phone'),
+                    birth_date=self.cleaned_data.get('birth_date'),
+                    address=self.cleaned_data.get('address'),
+                    skills=self.cleaned_data.get('skills'),
+                    major=self.cleaned_data.get('major'),
+                )
+            elif role == 'recruiter':
+                CompanyProfile.objects.create(
+                    user=user, # Liên kết nhà tuyển dụng với thông tin công ty
+                    phone=self.cleaned_data.get('phone'),
+                    address=self.cleaned_data.get('address'), # Địa chỉ trụ sở công ty
+                )
         return user
-
 
 class UserUpdateForm(forms.ModelForm):
     email = forms.EmailField(required=True, label='Email')
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name']
+        fields = ['email', 'first_name', 'last_name']
+
+    def clean_email(self):
+        email = (self.cleaned_data.get('email') or '').strip()
+        if 'email' in self.changed_data:
+            if User.objects.filter(email__iexact=email).exclude(pk=self.instance.pk).exists():
+                raise forms.ValidationError(
+                    'Email này đã được tài khoản khác sử dụng. Vui lòng dùng email khác.'
+                )
+        return email
 
 
 class ProfileUpdateForm(forms.ModelForm):
-    # Sử dụng chung bộ 6 ngành chuẩn
     major = forms.ChoiceField(
         choices=MAJOR_CHOICES, 
         required=False, 
@@ -143,9 +240,11 @@ class ProfileUpdateForm(forms.ModelForm):
 
     class Meta:
         model = Profile
-        fields = ['phone', 'bio', 'major', 'skills', 'avatar', 'cv_file']
+        fields = ['phone', 'birth_date', 'address', 'bio', 'major', 'skills', 'avatar', 'cv_file']
         widgets = {
             'phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'birth_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'address': forms.TextInput(attrs={'class': 'form-control'}),
             'bio': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
             'skills': forms.TextInput(attrs={'class': 'form-control', 'readonly': True}),
             'avatar': forms.FileInput(attrs={'class': 'form-control'}),

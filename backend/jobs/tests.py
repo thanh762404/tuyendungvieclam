@@ -1,29 +1,45 @@
 import json
 import os
 import tempfile
+from io import StringIO
 from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.http import Http404, HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
 from accounts.models import Profile, User
 from jobs.forms import JobForm
-from jobs.models import Application, Job, JobChatMessage
+from jobs.models import (
+    Application,
+    CompanyProfile,
+    Job,
+    JobChatMessage,
+    Notification,
+    PackageTransaction,
+    RecruiterAccount,
+    SubscriptionPackage,
+)
 from jobs.services import send_interview_reminder_email
 from jobs.views_candidate import (
     apply_job,
     candidate_applications,
     update_application_status,
 )
-from jobs.views_chat import get_job_chat_unread_count, send_job_chat_message
+from jobs.views_chat import (
+    ask_gemini,
+    get_job_chat_unread_count,
+    send_job_chat_message,
+)
 from jobs.views_home import home_view
 from jobs.views_admin import admin_approve_recruiter, admin_manage_jobs
 from jobs.views_recruiter import (
     all_approved_candidates_view,
+    buy_package_view,
     job_achieved_candidates_view,
     mark_job_chat_read,
     recruiter_job_list,
@@ -76,7 +92,6 @@ class CandidateJobRecommendationTests(TestCase):
             user=self.candidate,
             major='Công nghệ thông tin',
             skills='Python',
-            cv_skills='Django',
         )
         self.request_factory = RequestFactory()
         self.matching_job = self.create_job(
@@ -87,9 +102,6 @@ class CandidateJobRecommendationTests(TestCase):
         )
         self.wrong_skill_job = self.create_job(
             recruiter, 'Java Developer', 'Công nghệ thông tin', 'Java'
-        )
-        self.stale_cv_skill_job = self.create_job(
-            recruiter, 'Django Developer', 'Công nghệ thông tin', 'Django'
         )
 
     def create_job(self, recruiter, title, major, skills, description=None):
@@ -121,7 +133,6 @@ class CandidateJobRecommendationTests(TestCase):
             list(context['suggested_jobs']),
             [self.matching_job],
         )
-        self.assertNotIn(self.stale_cv_skill_job, context['suggested_jobs'])
 
     def test_single_selected_skill_suggests_every_job_requiring_that_skill(self):
         self.profile.skills = 'MySQL'
@@ -144,151 +155,6 @@ class CandidateJobRecommendationTests(TestCase):
         self.assertEqual(
             set(context['suggested_jobs']),
             {mysql_python_job, mysql_django_job},
-        )
-
-    def test_uploaded_cv_skills_can_recommend_jobs_outside_profile_major(self):
-        self.profile.major = 'Tài chính – Ngân hàng'
-        self.profile.skills = 'Tín dụng ngân hàng'
-        self.profile.cv_skills = 'Tester, Node.js, ReactJS'
-        self.profile.cv_file = 'cvs/candidate.pdf'
-        self.profile.save()
-        finance_job = self.create_job(
-            self.matching_job.recruiter,
-            'Chuyên viên Tín dụng ngân hàng',
-            'Tài chính – Ngân hàng',
-            'Tín dụng ngân hàng, Chăm sóc khách hàng',
-        )
-        cv_job = self.create_job(
-            self.matching_job.recruiter,
-            'Kỹ sư Kiểm thử Phần mềm Tester',
-            'Công nghệ thông tin',
-            'MySQL, Tester',
-        )
-        unrelated_job = self.create_job(
-            self.matching_job.recruiter,
-            'Nhân viên Quản lý kho',
-            'Logistics',
-            'Quản lý kho, Xuất nhập khẩu',
-        )
-
-        with patch('jobs.views_home.extract_skills_from_file', return_value=[]):
-            _, context = self.get_home_context()
-
-        self.assertEqual(
-            list(context['suggested_jobs']),
-            [finance_job, cv_job],
-        )
-        self.assertNotIn(unrelated_job, context['suggested_jobs'])
-
-    def test_cv_skills_are_combined_with_registered_skills(self):
-        self.profile.cv_file = 'cvs/candidate.pdf'
-        self.profile.save()
-        cv_skill_job = self.create_job(
-            self.matching_job.recruiter, 'Django Developer', 'Công nghệ thông tin', 'Django'
-        )
-
-        with patch('jobs.views_home.extract_skills_from_file', return_value=['Django']):
-            response, context = self.get_home_context()
-
-        self.assertEqual(
-            set(context['suggested_jobs']),
-            {self.matching_job, self.stale_cv_skill_job, cv_skill_job},
-        )
-
-    def test_recommendations_rank_by_skill_coverage_and_ignore_description_mentions(self):
-        self.profile.skills = 'HTML/CSS, MySQL'
-        self.profile.cv_skills = 'Tester, Node.js, ReactJS, React'
-        self.profile.cv_file = 'cvs/candidate.pdf'
-        self.profile.save()
-
-        profile_skill_job = self.create_job(
-            self.matching_job.recruiter,
-            'HTML/CSS Developer',
-            'Công nghệ thông tin',
-            'HTML/CSS, Python, Django',
-        )
-        weak_profile_match_job = self.create_job(
-            self.matching_job.recruiter,
-            'Python Django Backend',
-            'Công nghệ thông tin',
-            'Python, MySQL, Django, HTML/CSS',
-        )
-        tester_job = self.create_job(
-            self.matching_job.recruiter,
-            'Kỹ sư kiểm thử (QC/Tester)',
-            'Công nghệ thông tin',
-            'MySQL, Tester',
-        )
-        frontend_job = self.create_job(
-            self.matching_job.recruiter,
-            'Lập trình viên Fullstack Node.js ReactJS',
-            'Công nghệ thông tin',
-            'ReactJS, MySQL, HTML/CSS, Node.js',
-        )
-        data_job = self.create_job(
-            self.matching_job.recruiter,
-            'Kỹ sư Machine Learning',
-            'Công nghệ thông tin',
-            'Python, MySQL',
-        )
-        automation_job = self.create_job(
-            self.matching_job.recruiter,
-            'Automation Tester Python',
-            'Công nghệ thông tin',
-            'Python, MySQL, Tester',
-        )
-        web_job = self.create_job(
-            self.matching_job.recruiter,
-            'Fullstack Python ReactJS',
-            'Công nghệ thông tin',
-            'Python, ReactJS, MySQL, Django',
-        )
-        weak_match_job = self.create_job(
-            self.matching_job.recruiter,
-            'Lập trình viên Backend',
-            'Công nghệ thông tin',
-            'Python, MySQL, Django',
-        )
-        no_match_job = self.create_job(
-            self.matching_job.recruiter,
-            'Java Developer',
-            'Công nghệ thông tin',
-            'Java, Python, Django',
-        )
-        description_only_job = self.create_job(
-            self.matching_job.recruiter,
-            'Kỹ sư Java',
-            'Công nghệ thông tin',
-            '',
-            description='Có nhắc đến MySQL nhưng không khai báo là kỹ năng yêu cầu.',
-        )
-
-        with patch('jobs.views_home.extract_skills_from_file', return_value=[]):
-            _, context = self.get_home_context()
-
-        self.assertEqual(
-            list(context['suggested_jobs']),
-                [
-                    frontend_job,
-                    weak_profile_match_job,
-                    tester_job,
-                    automation_job,
-                    web_job,
-                    data_job,
-                    profile_skill_job,
-                    weak_match_job,
-                ],
-        )
-        self.assertNotIn(no_match_job, context['suggested_jobs'])
-        self.assertNotIn(description_only_job, context['suggested_jobs'])
-        suggested_by_id = {job.pk: job for job in context['suggested_jobs']}
-        self.assertEqual(
-            suggested_by_id[profile_skill_job.pk].recommendation_profile_skills,
-            ['HTML/CSS'],
-        )
-        self.assertEqual(
-            suggested_by_id[frontend_job.pk].recommendation_cv_skills,
-            ['Node.js', 'ReactJS'],
         )
 
 
@@ -320,6 +186,7 @@ class JobMajorSkillValidationTests(TestCase):
         self.assertIn('skills_required', form.errors)
 
 
+@override_settings(EMAIL_HOST_PASSWORD='test-app-password')
 class JobHiringCapacityTests(TestCase):
     def setUp(self):
         self.recruiter = User.objects.create_user(
@@ -342,7 +209,10 @@ class JobHiringCapacityTests(TestCase):
 
     def create_application(self, username, status='Approved'):
         candidate = User.objects.create_user(
-            username=username, password='test-password', is_candidate=True
+            username=username,
+            email=f'{username}@example.com',
+            password='test-password',
+            is_candidate=True,
         )
         return Application.objects.create(
             job=self.job,
@@ -373,6 +243,9 @@ class JobHiringCapacityTests(TestCase):
         application = self.create_application('reminder-candidate', status='Approved')
         application.candidate.email = 'candidate@example.com'
         application.candidate.save(update_fields=['email'])
+        application.candidate.first_name = 'Nguyen'
+        application.candidate.last_name = 'Van A'
+        application.candidate.save(update_fields=['first_name', 'last_name'])
         interview_at = timezone.now() + timedelta(hours=12)
         application.interview_details = (
             f"Ngày: {interview_at.strftime('%Y-%m-%d')}\n"
@@ -388,7 +261,58 @@ class JobHiringCapacityTests(TestCase):
         self.assertTrue(application.reminder_sent)
         send_mail.assert_called_once()
         self.assertEqual(send_mail.call_args.args[3], ['candidate@example.com'])
+        self.assertIn('Nguyen Van A', send_mail.call_args.args[1])
         self.assertIn('trong vòng 24 giờ', send_mail.call_args.args[1])
+
+    def test_interview_reminder_reports_missing_gmail_app_password(self):
+        application = self.create_application('missing-password-candidate')
+        interview_at = timezone.now() + timedelta(hours=12)
+        application.interview_details = (
+            f"Ngày: {interview_at.strftime('%Y-%m-%d')}\n"
+            f"Giờ: {interview_at.strftime('%H:%M')}"
+        )
+        application.save(update_fields=['interview_details'])
+
+        with override_settings(EMAIL_HOST_PASSWORD=''):
+            with self.assertRaisesRegex(RuntimeError, 'EMAIL_HOST_PASSWORD'):
+                send_interview_reminder_email(application)
+
+    def test_scheduled_command_sends_only_reminders_due_within_24_hours(self):
+        due_application = self.create_application(
+            'due-reminder-candidate',
+            status='Approved',
+        )
+        due_application.candidate.email = 'due@example.com'
+        due_application.candidate.save(update_fields=['email'])
+        due_time = timezone.now() + timedelta(hours=23)
+        due_application.interview_details = (
+            f"Ngày: {due_time.strftime('%Y-%m-%d')}\n"
+            f"Giờ: {due_time.strftime('%H:%M')}"
+        )
+        due_application.save(update_fields=['interview_details'])
+
+        later_application = self.create_application(
+            'later-reminder-candidate',
+            status='Approved',
+        )
+        later_application.candidate.email = 'later@example.com'
+        later_application.candidate.save(update_fields=['email'])
+        later_time = timezone.now() + timedelta(hours=25)
+        later_application.interview_details = (
+            f"Ngày: {later_time.strftime('%Y-%m-%d')}\n"
+            f"Giờ: {later_time.strftime('%H:%M')}"
+        )
+        later_application.save(update_fields=['interview_details'])
+
+        with patch('jobs.services.send_mail', return_value=1) as send_mail:
+            call_command('send_interview_reminders', stdout=StringIO())
+
+        due_application.refresh_from_db()
+        later_application.refresh_from_db()
+        self.assertTrue(due_application.reminder_sent)
+        self.assertFalse(later_application.reminder_sent)
+        send_mail.assert_called_once()
+        self.assertEqual(send_mail.call_args.args[3], ['due@example.com'])
 
     def test_trial_status_emails_work_schedule_and_notifies_candidate(self):
         application = self.create_application('trial-notice-candidate', status='Approved')
@@ -416,6 +340,33 @@ class JobHiringCapacityTests(TestCase):
         self.assertIn('Đang thử việc', send_mail.call_args.args[1])
         self.assertIn('Lịch bắt đầu thử việc/đi làm', send_mail.call_args.args[1])
         self.assertIn('2026-10-05', send_mail.call_args.args[1])
+
+    def test_updating_schedule_without_changing_status_sends_email_and_notification(self):
+        application = self.create_application('schedule-update-candidate', status='Approved')
+        application.candidate.email = 'candidate@example.com'
+        application.candidate.save(update_fields=['email'])
+        application.interview_details = 'Ngày: 2026-10-05\nGiờ: 09:00'
+        application.save(update_fields=['interview_details'])
+
+        with patch('jobs.services.send_mail', return_value=1) as send_mail:
+            response = self.update_status(
+                application,
+                'Approved',
+                interview_date='2026-10-06',
+                interview_time='10:30',
+            )
+
+        application.refresh_from_db()
+        notification = JobChatMessage.objects.get(
+            receiver=application.candidate,
+            is_application_update=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(application.status, 'Approved')
+        self.assertIn('2026-10-06', application.interview_details)
+        self.assertIn('đã được nhà tuyển dụng cập nhật', notification.message)
+        send_mail.assert_called_once()
+        self.assertIn('2026-10-06', send_mail.call_args.args[1])
 
     def test_applications_are_not_limited_by_hiring_capacity(self):
         candidate = User.objects.create_user(
@@ -481,6 +432,44 @@ class JobHiringCapacityTests(TestCase):
         self.assertEqual(displayed_job.hired_count, 3)
         self.assertFalse(hasattr(displayed_job, 'hiring_applications'))
 
+    def test_recruiter_chat_badges_count_only_unread_candidate_messages(self):
+        candidate = User.objects.create_user(
+            username='chat-candidate',
+            email='chat-candidate@example.com',
+            password='test-password',
+            is_candidate=True,
+        )
+        JobChatMessage.objects.bulk_create(
+            [
+                JobChatMessage(
+                    job=self.job,
+                    sender=candidate,
+                    receiver=self.recruiter,
+                    message=f'Câu hỏi {index}',
+                )
+                for index in range(3)
+            ]
+            + [
+                JobChatMessage(
+                    job=self.job,
+                    sender=self.recruiter,
+                    receiver=candidate,
+                    message=f'Trả lời AI {index}',
+                )
+                for index in range(3)
+            ]
+        )
+        request = self.request_factory.get('/recruiter/jobs/')
+        request.user = self.recruiter
+
+        with patch('jobs.views_recruiter.render', return_value=HttpResponse()) as render:
+            response = recruiter_job_list(request)
+
+        context = render.call_args.args[2]
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(context['total_unread'], 3)
+        self.assertEqual(context['chat_conversations'][0]['unread_count'], 3)
+
     def test_job_achieved_candidates_shows_only_that_jobs_pipeline(self):
         self.create_application('passed-candidate', status='InterviewPassed')
         self.create_application('trial-candidate', status='Trial')
@@ -513,10 +502,21 @@ class JobHiringCapacityTests(TestCase):
 class JobChatAssistantTests(TestCase):
     def setUp(self):
         self.recruiter = User.objects.create_user(
-            username='recruiter', password='test-password', is_recruiter=True
+            username='recruiter',
+            email='recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
+        )
+        CompanyProfile.objects.create(
+            user=self.recruiter,
+            company_name='Công ty mẫu',
+            address='123 Đường Nguyễn Huệ, TP. Hồ Chí Minh',
         )
         self.candidate = User.objects.create_user(
-            username='candidate', password='test-password', is_candidate=True
+            username='candidate',
+            email='candidate@example.com',
+            password='test-password',
+            is_candidate=True,
         )
         self.job = Job.objects.create(
             title='Python Backend Developer',
@@ -532,9 +532,397 @@ class JobChatAssistantTests(TestCase):
         )
         self.request_factory = RequestFactory()
 
+    def test_gemini_call_has_short_timeout_and_no_retries(self):
+        response = type('GeminiResponse', (), {'text': 'Trả lời nhanh'})()
+        client = type(
+            'GeminiClient',
+            (),
+            {
+                'models': type(
+                    'Models',
+                    (),
+                    {'generate_content': lambda self, **kwargs: response},
+                )(),
+                'close': lambda self: None,
+            },
+        )()
+        with patch.dict(os.environ, {'GOOGLE_API_KEY': 'test-key'}), patch(
+            'jobs.views_chat.genai.Client', return_value=client
+        ) as create_client:
+            result = ask_gemini('Trả lời ngắn gọn', 'Câu hỏi tuyển dụng')
+
+        self.assertEqual(result, 'Trả lời nhanh')
+        http_options = create_client.call_args.kwargs['http_options']
+        self.assertEqual(http_options.timeout, 8000)
+        self.assertEqual(http_options.retry_options.attempts, 1)
+
+    def test_candidate_gets_instant_answer_from_job_listing(self):
+        self.client.force_login(self.candidate)
+
+        with patch('jobs.views_chat.ask_gemini') as ask_gemini:
+            response = self.client.post(
+                f'/jobs/{self.job.pk}/chat/send/',
+                {'message': 'Mức lương vị trí này là bao nhiêu?'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertIn('20 triệu', response.json()['reply'])
+        ask_gemini.assert_not_called()
+        messages = list(
+            JobChatMessage.objects.filter(job=self.job).order_by('created_at', 'pk')
+        )
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0].sender, self.candidate)
+        self.assertEqual(messages[1].sender, self.recruiter)
+
+    def test_general_question_uses_fast_ai_and_reply_is_saved(self):
+        self.client.force_login(self.candidate)
+
+        with patch(
+            'jobs.views_chat.ask_gemini',
+            return_value='{"related": true, "answer": "AI trả lời về công việc."}',
+        ) as ask_gemini:
+            response = self.client.post(
+                f'/jobs/{self.job.pk}/chat/send/',
+                {'message': 'Công ty có những phúc lợi nào?'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['reply'], 'AI trả lời về công việc.')
+        ask_gemini.assert_called_once()
+        self.assertTrue(
+            JobChatMessage.objects.filter(
+                job=self.job,
+                sender=self.recruiter,
+                receiver=self.candidate,
+                message='AI trả lời về công việc.',
+            ).exists()
+        )
+
+    def test_off_topic_question_gets_polite_scope_redirect(self):
+        self.client.force_login(self.candidate)
+
+        with patch('jobs.views_chat.ask_gemini') as ask_gemini:
+            response = self.client.post(
+                f'/jobs/{self.job.pk}/chat/send/',
+                {'message': 'Bạn ăn cơm chưa?'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('chỉ hỗ trợ các câu hỏi', response.json()['reply'])
+        ask_gemini.assert_not_called()
+
+    def test_ai_can_reject_off_topic_question_with_job_related_keyword(self):
+        self.client.force_login(self.candidate)
+
+        with patch(
+            'jobs.views_chat.ask_gemini',
+            return_value='{"related": false, "answer": ""}',
+        ) as ask_gemini:
+            response = self.client.post(
+                f'/jobs/{self.job.pk}/chat/send/',
+                {'message': 'Lương của cầu thủ Messi là bao nhiêu?'},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('chỉ hỗ trợ các câu hỏi', response.json()['reply'])
+        ask_gemini.assert_called_once()
+        ask_gemini.assert_called_once()
+
+    def test_candidate_chat_history_is_oldest_to_newest(self):
+        older_question = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.candidate,
+            receiver=self.recruiter,
+            message='Câu hỏi trước',
+        )
+        older_reply = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.recruiter,
+            receiver=self.candidate,
+            message='Câu trả lời trước',
+        )
+        newer_question = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.candidate,
+            receiver=self.recruiter,
+            message='Câu hỏi mới nhất',
+        )
+        newer_reply = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.recruiter,
+            receiver=self.candidate,
+            message='Câu trả lời mới nhất',
+        )
+        self.client.force_login(self.candidate)
+
+        response = self.client.get(f'/jobs/{self.job.pk}/chat/history/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [message['message'] for message in response.json()['messages']],
+            [
+                older_question.message,
+                older_reply.message,
+                newer_question.message,
+                newer_reply.message,
+            ],
+        )
+        self.assertEqual(
+            response.json()['messages'][0]['created_at'],
+            older_question.created_at.strftime('%d/%m/%Y %H:%M'),
+        )
+        self.assertIn('id', response.json()['messages'][0])
+
+    def test_recruiter_can_delete_entire_chat_conversation_for_their_job(self):
+        question = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.candidate,
+            receiver=self.recruiter,
+            message='Câu hỏi',
+        )
+        answer = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.recruiter,
+            receiver=self.candidate,
+            message='Câu trả lời',
+        )
+        application_update = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.recruiter,
+            receiver=self.candidate,
+            message='Cập nhật trạng thái hồ sơ',
+            is_application_update=True,
+        )
+        self.client.force_login(self.recruiter)
+
+        response = self.client.post(
+            f'/jobs/{self.job.pk}/chat/{self.candidate.pk}/delete-conversation/'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'success')
+        self.assertFalse(
+            JobChatMessage.objects.filter(pk__in=[question.pk, answer.pk]).exists()
+        )
+        self.assertTrue(JobChatMessage.objects.filter(pk=application_update.pk).exists())
+
+    def test_recruiter_cannot_delete_another_recruiters_conversation(self):
+        other_recruiter = User.objects.create_user(
+            username='another-recruiter',
+            email='another-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
+        )
+        other_job = Job.objects.create(
+            title='Other job',
+            location='Đà Nẵng',
+            salary='15 triệu',
+            job_type='Full-time',
+            description='Tin tuyển dụng khác.',
+            requirements='Kinh nghiệm phù hợp.',
+            recruiter=other_recruiter,
+            status='Approved',
+        )
+        message = JobChatMessage.objects.create(
+            job=other_job,
+            sender=self.candidate,
+            receiver=other_recruiter,
+            message='Tin nhắn riêng',
+        )
+        self.client.force_login(self.recruiter)
+
+        response = self.client.post(
+            f'/jobs/{other_job.pk}/chat/{self.candidate.pk}/delete-conversation/'
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(JobChatMessage.objects.filter(pk=message.pk).exists())
+
+    def test_submitting_application_notifies_the_job_recruiter(self):
+        self.client.force_login(self.candidate)
+        with tempfile.TemporaryDirectory() as media_root, override_settings(
+            MEDIA_ROOT=media_root
+        ):
+            response = self.client.post(
+                f'/jobs/{self.job.pk}/apply/',
+                {
+                    'cv_file': SimpleUploadedFile(
+                        'resume.pdf', b'pdf-content', content_type='application/pdf'
+                    ),
+                    'cover_letter': 'Tôi muốn ứng tuyển.',
+                },
+            )
+
+        notification = Notification.objects.get(recipient=self.recruiter)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(notification.title, 'Ứng viên mới ứng tuyển')
+        self.assertEqual(notification.job_title, self.job.title)
+        self.assertEqual(notification.application.job, self.job)
+        self.assertIn(self.candidate.username, notification.message)
+
+    def test_recruiter_notification_links_to_applicant_review_and_schedule(self):
+        application = Application.objects.create(
+            job=self.job,
+            candidate=self.candidate,
+            cv_file='applications_cvs/resume.pdf',
+            cover_letter='Tôi muốn ứng tuyển.',
+        )
+        notification = Notification.objects.create(
+            recipient=self.recruiter,
+            title='Ứng viên mới ứng tuyển',
+            message='Ứng viên vừa nộp hồ sơ.',
+            application=application,
+        )
+        self.client.force_login(self.recruiter)
+
+        response = self.client.get('/api/notifications/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()['notifications'][0]['action_url'],
+            f'/jobs/{self.job.pk}/applications/?application_id={application.pk}',
+        )
+        self.assertTrue(Notification.objects.filter(pk=notification.pk).exists())
+
+    def test_legacy_recruiter_notification_links_to_matching_application(self):
+        application = Application.objects.create(
+            job=self.job,
+            candidate=self.candidate,
+            cv_file='applications_cvs/resume.pdf',
+        )
+        notification = Notification.objects.create(
+            recipient=self.recruiter,
+            title='Ứng viên mới ứng tuyển',
+            message=f'{self.candidate.display_name} vừa nộp hồ sơ ứng tuyển vào tin tuyển dụng này.',
+            job_title=self.job.title,
+        )
+        self.client.force_login(self.recruiter)
+
+        response = self.client.get('/api/notifications/')
+        item = next(
+            item
+            for item in response.json()['notifications']
+            if item['id'] == notification.pk
+        )
+
+        self.assertEqual(
+            item['action_url'],
+            f'/jobs/{self.job.pk}/applications/?application_id={application.pk}',
+        )
+
+    def test_recruiter_can_only_read_and_delete_their_notifications(self):
+        other_recruiter = User.objects.create_user(
+            username='another-recruiter',
+            email='another-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
+        )
+        own_notification = Notification.objects.create(
+            recipient=self.recruiter,
+            title='Ứng viên mới ứng tuyển',
+            message='Ứng viên mới đã nộp CV.',
+            job_title=self.job.title,
+        )
+        other_notification = Notification.objects.create(
+            recipient=other_recruiter,
+            title='Thông báo riêng',
+            message='Không được hiển thị cho nhà tuyển dụng khác.',
+        )
+        self.client.force_login(self.recruiter)
+
+        response = self.client.get('/api/notifications/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [item['id'] for item in response.json()['notifications']],
+            [own_notification.pk],
+        )
+        response = self.client.post(
+            '/api/notifications/delete/',
+            {'notif_id': other_notification.pk},
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertTrue(Notification.objects.filter(pk=own_notification.pk).exists())
+        self.assertTrue(Notification.objects.filter(pk=other_notification.pk).exists())
+
+        response = self.client.post(
+            '/api/notifications/delete/',
+            {'notif_id': own_notification.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(Notification.objects.filter(pk=own_notification.pk).exists())
+
+        bulk_notifications = Notification.objects.bulk_create(
+            [
+                Notification(
+                    recipient=self.recruiter,
+                    title='Thông báo mới',
+                    message='Thông báo cần xóa.',
+                )
+                for _ in range(2)
+            ]
+        )
+        response = self.client.post('/api/notifications/delete-all/')
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            Notification.objects.filter(
+                pk__in=[notification.pk for notification in bulk_notifications]
+            ).exists()
+        )
+        self.assertTrue(Notification.objects.filter(pk=other_notification.pk).exists())
+
+    def test_candidate_delete_all_only_removes_application_notifications(self):
+        update = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.recruiter,
+            receiver=self.candidate,
+            message='Hồ sơ đã được cập nhật.',
+            is_application_update=True,
+        )
+        chat_message = JobChatMessage.objects.create(
+            job=self.job,
+            sender=self.recruiter,
+            receiver=self.candidate,
+            message='Tin nhắn trao đổi.',
+        )
+        self.client.force_login(self.candidate)
+
+        response = self.client.post(
+            '/api/notifications/delete/',
+            {'notif_id': update.pk},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(JobChatMessage.objects.filter(pk=update.pk).exists())
+
+        updates_to_clear = JobChatMessage.objects.bulk_create(
+            [
+                JobChatMessage(
+                    job=self.job,
+                    sender=self.recruiter,
+                    receiver=self.candidate,
+                    message='Thông báo cần xóa.',
+                    is_application_update=True,
+                )
+                for _ in range(2)
+            ]
+        )
+        response = self.client.post('/api/notifications/delete-all/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            JobChatMessage.objects.filter(
+                pk__in=[notification.pk for notification in updates_to_clear]
+            ).exists()
+        )
+        self.assertTrue(JobChatMessage.objects.filter(pk=chat_message.pk).exists())
+
     def create_application(self, username, status='Approved'):
         candidate = User.objects.create_user(
-            username=username, password='test-password', is_candidate=True
+            username=username,
+            email=f'{username}@example.com',
+            password='test-password',
+            is_candidate=True,
         )
         return Application.objects.create(
             job=self.job,
@@ -543,14 +931,16 @@ class JobChatAssistantTests(TestCase):
             status=status,
         )
 
-    def update_status(self, application, status, interview_date='', interview_time=''):
+    def update_status(
+        self, application, status, interview_date='', interview_time='', interview_note=''
+    ):
         request = self.request_factory.post(
             f'/application/{application.pk}/update/',
             {
                 'status': status,
                 'interview_date': interview_date,
                 'interview_time': interview_time,
-                'interview_note': '',
+                'interview_note': interview_note,
             },
         )
         request.user = self.recruiter
@@ -560,53 +950,6 @@ class JobChatAssistantTests(TestCase):
             'jobs.views_candidate.render', return_value=HttpResponse()
         ):
             return update_application_status(request, application.pk)
-
-    def test_candidate_gets_immediate_ai_reply_with_current_and_other_jobs_context(self):
-        other_job = Job.objects.create(
-            title='Frontend React Developer',
-            location='Đà Nẵng',
-            salary='18 triệu',
-            job_type='Full-time',
-            description='Phát triển giao diện React.',
-            requirements='Biết ReactJS.',
-            major_required='Công nghệ thông tin',
-            skills_required='ReactJS, HTML/CSS',
-            recruiter=self.recruiter,
-            status='Approved',
-        )
-        Job.objects.create(
-            title='Tin chưa duyệt',
-            location='Hà Nội',
-            salary='Thoả thuận',
-            job_type='Full-time',
-            description='Không đưa vào gợi ý.',
-            requirements='',
-            recruiter=self.recruiter,
-            status='Pending',
-        )
-        request = RequestFactory().post(
-            f'/jobs/{self.job.pk}/chat/send/',
-            {'message': 'Công việc này yêu cầu kỹ năng gì?'},
-        )
-        request.user = self.candidate
-        generated_response = type('GeneratedResponse', (), {'text': 'Cần Python và Django.'})()
-
-        with patch.dict(os.environ, {'GOOGLE_API_KEY': 'test-key'}):
-            with patch('jobs.views_chat.genai', create=True) as genai_module:
-                client_class = genai_module.Client
-                client_class.return_value.models.generate_content.return_value = generated_response
-                response = send_job_chat_message(request, self.job.pk)
-
-        response_data = json.loads(response.content)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response_data['status'], 'success')
-        self.assertEqual(JobChatMessage.objects.count(), 2)
-        ai_message = JobChatMessage.objects.get(sender=self.recruiter, receiver=self.candidate)
-        self.assertEqual(ai_message.message, 'Cần Python và Django.')
-        prompt = client_class.return_value.models.generate_content.call_args.kwargs['contents']
-        self.assertIn(self.job.title, prompt)
-        self.assertIn(other_job.title, prompt)
-        self.assertNotIn('Tin chưa duyệt', prompt)
 
     def test_candidate_unread_badge_clears_after_opening_chat(self):
         message = JobChatMessage.objects.create(
@@ -659,6 +1002,37 @@ class JobChatAssistantTests(TestCase):
         self.assertIn('Giờ: 14:30', application.interview_details)
         self.assertIn('Đã duyệt / Phỏng vấn', notification.message)
         self.assertIn('2026-10-05', notification.message)
+
+    def test_interview_location_comes_from_recruiter_profile_and_note_is_separate(self):
+        application = self.create_application('location-candidate', status='Pending')
+
+        response = self.update_status(
+            application,
+            'Approved',
+            interview_date='2026-10-05',
+            interview_time='14:30',
+            interview_note='Mang theo CV\nĐịa điểm: liên hệ nhân sự nếu cần đổi lịch.',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertIn(
+            'Địa điểm: 123 Đường Nguyễn Huệ, TP. Hồ Chí Minh',
+            application.interview_details,
+        )
+        self.assertIn(
+            'Ghi chú: Mang theo CV\nĐịa điểm: liên hệ nhân sự nếu cần đổi lịch.',
+            application.interview_details,
+        )
+        self.assertNotIn('Địa điểm: Mang theo CV', application.interview_details)
+        self.assertEqual(
+            application.interview_location,
+            '123 Đường Nguyễn Huệ, TP. Hồ Chí Minh',
+        )
+        self.assertEqual(
+            application.interview_note,
+            'Mang theo CV\nĐịa điểm: liên hệ nhân sự nếu cần đổi lịch.',
+        )
 
     def test_rejection_updates_status_and_notifies_candidate(self):
         application = self.create_application('rejected-candidate', status='Pending')
@@ -730,6 +1104,147 @@ class JobChatAssistantTests(TestCase):
         )
 
 
+class SePayWebhookTests(TestCase):
+    def setUp(self):
+        self.recruiter = User.objects.create_user(
+            username='sepay-recruiter',
+            email='sepay-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
+        )
+        self.package = SubscriptionPackage.objects.create(
+            name='Gói tháng',
+            duration_days=30,
+            post_limit=10,
+            price=70000,
+        )
+        self.purchase = PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=self.package.price,
+        )
+
+    def send_webhook(self, payload, secret='webhook-secret'):
+        body = json.dumps(payload).encode()
+        return self.client.post(
+            '/webhooks/sepay/',
+            data=body,
+            content_type='application/json',
+            HTTP_AUTHORIZATION=f'Apikey {secret}',
+        )
+
+    def test_recruiter_creates_payment_order_before_scanning_qr(self):
+        self.client.force_login(self.recruiter)
+
+        response = self.client.post(
+            '/buy-package/',
+            {'action': 'create_payment', 'package_id': self.package.pk},
+        )
+
+        purchase = PackageTransaction.objects.filter(
+            recruiter=self.recruiter
+        ).order_by('-pk').first()
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(f'transaction={purchase.pk}', response.url)
+        self.assertTrue(purchase.payment_code.startswith('CTJ'))
+        self.assertEqual(purchase.amount, self.package.price)
+        self.assertEqual(purchase.status, 'pending')
+
+    def event(self, **overrides):
+        payload = {
+            'id': 918273,
+            'transferType': 'in',
+            'accountNumber': '0368031812',
+            'transferAmount': 70000,
+            'content': f'Thanh toan {self.purchase.payment_code}',
+            'description': 'Chuyen khoan',
+        }
+        payload.update(overrides)
+        return payload
+
+    @override_settings(
+        SEPAY_WEBHOOK_SECRET='webhook-secret',
+        SEPAY_BANK_ACCOUNT='0368031812',
+    )
+    def test_valid_sepay_transfer_activates_package_once(self):
+        response = self.send_webhook(self.event())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'success': True})
+        self.purchase.refresh_from_db()
+        recruiter_account = self.recruiter.recruiter_account
+        self.assertEqual(self.purchase.status, 'approved')
+        self.assertEqual(self.purchase.sepay_transaction_id, '918273')
+        self.assertEqual(self.purchase.sepay_received_amount, 70000)
+        self.assertIsNotNone(self.purchase.verified_at)
+        self.assertEqual(recruiter_account.active_package, self.package)
+        self.assertEqual(recruiter_account.posts_remaining, self.package.post_limit)
+
+        self.send_webhook(self.event())
+        recruiter_account.refresh_from_db()
+        self.assertEqual(recruiter_account.posts_remaining, self.package.post_limit)
+
+    @override_settings(
+        SEPAY_WEBHOOK_SECRET='webhook-secret',
+        SEPAY_BANK_ACCOUNT='0368031812',
+    )
+    def test_wrong_amount_does_not_activate_package(self):
+        response = self.send_webhook(self.event(transferAmount=69000))
+
+        self.assertEqual(response.status_code, 200)
+        self.purchase.refresh_from_db()
+        self.assertEqual(self.purchase.status, 'pending')
+        self.assertEqual(self.purchase.sepay_received_amount, 69000)
+        self.assertFalse(
+            RecruiterAccount.objects.filter(user=self.recruiter).exists()
+        )
+
+    @override_settings(
+        SEPAY_WEBHOOK_SECRET='webhook-secret',
+        SEPAY_BANK_ACCOUNT='0368031812',
+    )
+    def test_wrong_payment_code_does_not_activate_package(self):
+        response = self.send_webhook(self.event(content='Thanh toan khac'))
+
+        self.assertEqual(response.status_code, 200)
+        self.purchase.refresh_from_db()
+        self.assertEqual(self.purchase.status, 'pending')
+
+    def test_recruiter_can_upload_receipt_after_payment_is_approved(self):
+        self.purchase.status = 'approved'
+        self.purchase.save(update_fields=['status'])
+        self.client.force_login(self.recruiter)
+
+        response = self.client.post(
+            '/buy-package/',
+            {
+                'action': 'upload_proof',
+                'transaction_id': self.purchase.pk,
+                'proof_image': SimpleUploadedFile(
+                    'receipt.png',
+                    b'proof image content',
+                    content_type='image/png',
+                ),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.purchase.refresh_from_db()
+        self.assertTrue(self.purchase.proof_image.name.endswith('receipt.png'))
+        self.assertEqual(self.purchase.status, 'approved')
+
+    @override_settings(
+        SEPAY_WEBHOOK_SECRET='webhook-secret',
+        SEPAY_BANK_ACCOUNT='0368031812',
+    )
+    def test_invalid_api_key_is_rejected(self):
+        response = self.send_webhook(self.event(), secret='wrong-secret')
+
+        self.assertEqual(response.status_code, 401)
+        self.purchase.refresh_from_db()
+        self.assertEqual(self.purchase.status, 'pending')
+
+
 class RecruiterAdminApprovalTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
@@ -742,18 +1257,43 @@ class RecruiterAdminApprovalTests(TestCase):
             is_active=False,
             recruiter_cv='recruiter_cvs/recruiter-cv.pdf',
         )
+        self.company_profile = CompanyProfile.objects.create(
+            user=self.recruiter,
+            company_name='Công ty tuyển dụng',
+        )
         self.request_factory = RequestFactory()
 
     def test_admin_approval_activates_recruiter(self):
         request = self.request_factory.post('/custom-admin/user/1/approve-recruiter/')
         request.user = self.admin
 
-        with patch('jobs.views_admin.messages.success'):
+        with patch('jobs.views_admin.send_mail', return_value=1) as send_mail, patch(
+            'jobs.views_admin.messages.success'
+        ):
+            response = admin_approve_recruiter(request, self.recruiter.pk)
+
+        self.recruiter.refresh_from_db()
+        self.company_profile.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(self.recruiter.is_active)
+        self.assertTrue(self.company_profile.is_approved)
+        send_mail.assert_called_once()
+        self.assertEqual(send_mail.call_args.kwargs['recipient_list'], [self.recruiter.email])
+
+    def test_admin_approval_reports_email_failure_after_activating_recruiter(self):
+        request = self.request_factory.post('/custom-admin/user/1/approve-recruiter/')
+        request.user = self.admin
+
+        with patch(
+            'jobs.views_admin.send_mail',
+            side_effect=OSError('SMTP unavailable'),
+        ), patch('jobs.views_admin.messages.warning') as warning:
             response = admin_approve_recruiter(request, self.recruiter.pk)
 
         self.recruiter.refresh_from_db()
         self.assertEqual(response.status_code, 302)
         self.assertTrue(self.recruiter.is_active)
+        warning.assert_called_once()
 
     def test_admin_cannot_approve_recruiter_without_cv(self):
         self.recruiter.recruiter_cv = ''

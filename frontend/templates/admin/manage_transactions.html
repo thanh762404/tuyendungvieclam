@@ -6,12 +6,46 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary-color: #00b14f; }
-        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        :root {
+            --primary-color: #00a94f;
+            --ink: #172b4d;
+            --muted: #718096;
+            --surface: #ffffff;
+            --page-bg: #f3f6f9;
+        }
+        body { background-color: var(--page-bg); color: var(--ink); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .navbar-custom { background-color: var(--primary-color) !important; }
-        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
-        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
+        .sidebar { background: var(--surface); min-height: 85vh; border: 1px solid #e8edf2; border-radius: 1rem; }
+        .sidebar .nav-link { color: #46566b; font-weight: 500; padding: 12px 16px; border-radius: 0.65rem; margin-bottom: 5px; transition: .18s ease; }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 169, 79, 0.1); color: var(--primary-color); }
+        .page-heading { padding: .5rem 0 1.25rem; }
+        .page-heading .eyebrow { color: var(--primary-color); font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+        .page-heading h1 { color: var(--ink); font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 750; }
+        .surface-card { background: var(--surface); border: 1px solid #e8edf2; border-radius: 1rem; box-shadow: 0 6px 20px rgba(27, 39, 51, .045); }
+        .stat-card { display: block; height: 100%; padding: 1.1rem 1.2rem; }
+        .stat-card .stat-label { color: var(--muted); font-size: .82rem; font-weight: 600; }
+        .stat-card .stat-value { color: var(--ink); font-size: 1.55rem; font-weight: 750; line-height: 1.25; }
+        .stat-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; font-size: 1rem; }
+        .stat-revenue .stat-icon { color: #09884a; background: #e5f7ed; }
+        .stat-pending .stat-icon { color: #a76b00; background: #fff4d6; }
+        .stat-approved .stat-icon { color: #09884a; background: #e5f7ed; }
+        .stat-rejected .stat-icon { color: #c43e4d; background: #fdebed; }
+        .section-title { color: var(--ink); font-weight: 700; }
+        .form-select { min-height: 44px; border-color: #e1e7ed; }
+        .form-select:focus { border-color: #7bc99e; box-shadow: 0 0 0 .2rem rgba(0, 169, 79, .12); }
+        .transactions-table { min-width: 860px; margin-bottom: 0; }
+        .transactions-table thead th { color: #68778a; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: #f7f9fb; border-bottom: 1px solid #e8edf2; white-space: nowrap; }
+        .transactions-table tbody td { padding-top: 1rem; padding-bottom: 1rem; border-color: #edf1f4; }
+        .transactions-table tbody tr:hover { background: #f9fcfa; }
+        .transaction-id { display: inline-flex; align-items: center; padding: .35rem .55rem; border-radius: .55rem; color: #536477; background: #f1f4f7; font-weight: 700; }
+        .status-pill { display: inline-flex; align-items: center; gap: .4rem; padding: .42rem .65rem; border-radius: 999px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
+        .status-approved { color: #087a40; background: #e4f6eb; }
+        .status-pending { color: #8a5a00; background: #fff2cc; }
+        .status-rejected { color: #b52e3e; background: #fde8eb; }
+        .topcv-pagination-wrap { display: flex; justify-content: center; align-items: center; margin: 24px 0 4px; }
+        .topcv-page-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d1d5db; background: #fff; color: #9ca3af; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; transition: all .2s ease-in-out; }
+        .topcv-page-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #f0fdf4; }
+        .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
         .proof-thumb {
             width: 50px;
             height: 50px;
@@ -23,6 +57,13 @@
         }
         .proof-thumb:hover {
             transform: scale(1.08);
+        }
+        @media (max-width: 767.98px) {
+            .container { padding-left: 1rem; padding-right: 1rem; }
+            .sidebar { min-height: auto; }
+            .sidebar .nav-link { padding: 10px 12px; }
+            .stat-card { padding: .95rem; }
+            .table-card { padding: 1rem !important; }
         }
     </style>
 </head>
@@ -51,8 +92,8 @@
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý tài khoản</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-user-tie me-2"></i> Quản lý tin nhà tuyển dụng</a></li>
                         <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
                     </ul>
@@ -61,26 +102,65 @@
 
             <!-- Main Content -->
             <div class="col-md-9">
-                <!-- Thẻ hiển thị tổng doanh thu đã duyệt -->
-                <div class="alert alert-success d-flex justify-content-between align-items-center mb-4 rounded-4 shadow-sm bg-white border-0 py-3 px-4">
-                    <div>
-                        <h5 class="fw-bold mb-1 text-dark"><i class="fas fa-wallet text-success me-2"></i>Tổng doanh thu hệ thống</h5>
-                        <p class="mb-0 text-muted small">Được tính từ tất cả các gói cước đã được nhà tuyển dụng thanh toán và duyệt thành công.</p>
+                <div class="page-heading">
+                    <span class="eyebrow">Bảng điều khiển quản trị</span>
+                    <h1 class="mb-1 mt-1">Giao dịch &amp; gói cước</h1>
+                    <p class="text-muted mb-0">Theo dõi thanh toán, trạng thái xác nhận và biên lai chuyển khoản.</p>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6 col-xl-3">
+                        <a href="?status=approved" class="surface-card stat-card stat-revenue text-decoration-none text-reset">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="stat-label">Tổng doanh thu</span>
+                                <span class="stat-icon"><i class="fas fa-wallet"></i></span>
+                            </div>
+                            <div class="stat-value"><span class="money">{{ total_approved_amount|floatformat:0 }}</span> đ</div>
+                            <small class="text-muted">Từ giao dịch đã xác nhận</small>
+                        </a>
                     </div>
-                    <div class="fs-4 fw-bold text-success">
-                        <span class="money">{{ total_approved_amount|floatformat:0 }}</span> VNĐ
+                    <div class="col-sm-6 col-xl-3">
+                        <a href="?status=pending" class="surface-card stat-card stat-pending text-decoration-none text-reset">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="stat-label">Chờ xác nhận</span>
+                                <span class="stat-icon"><i class="fas fa-hourglass-half"></i></span>
+                            </div>
+                            <div class="stat-value">{{ transaction_stats.pending }}</div>
+                            <small class="text-muted">Giao dịch đang chờ xử lý</small>
+                        </a>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <a href="?status=approved" class="surface-card stat-card stat-approved text-decoration-none text-reset">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="stat-label">Đã kích hoạt</span>
+                                <span class="stat-icon"><i class="fas fa-circle-check"></i></span>
+                            </div>
+                            <div class="stat-value">{{ transaction_stats.approved }}</div>
+                            <small class="text-muted">Thanh toán hợp lệ</small>
+                        </a>
+                    </div>
+                    <div class="col-sm-6 col-xl-3">
+                        <div class="surface-card stat-card stat-rejected">
+                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                <span class="stat-label">Đã từ chối</span>
+                                <span class="stat-icon"><i class="fas fa-circle-xmark"></i></span>
+                            </div>
+                            <a href="?status=rejected" class="stat-value text-decoration-none text-reset">{{ transaction_stats.rejected }}</a>
+                            <div><a href="?" class="small text-muted">Tổng {{ transaction_stats.total }} giao dịch</a></div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Phần chọn tháng để xem doanh thu riêng -->
-                <div class="card shadow-sm border-0 rounded-4 mb-4">
+                <div class="surface-card mb-4">
                     <div class="card-body p-4">
-                        <h5 class="fw-bold text-dark mb-3"><i class="fas fa-chart-bar text-success me-2"></i>Tra cứu doanh thu theo tháng</h5>
+                        <h5 class="section-title mb-3"><i class="fas fa-chart-column text-success me-2"></i>Tra cứu doanh thu theo tháng</h5>
                         <form method="GET" action="" class="row g-3 align-items-center">
                             <!-- Giữ lại trạng thái lọc cũ nếu có -->
                             {% if status_filter %}
                                 <input type="hidden" name="status" value="{{ status_filter }}">
                             {% endif %}
+                            {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
                             <div class="col-md-8">
                                 <select name="month" class="form-select bg-light">
                                     <option value="">-- Chọn tháng/năm cần xem doanh thu --</option>
@@ -109,35 +189,36 @@
                 </div>
 
                 <!-- Bảng lịch sử giao dịch chính -->
-                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                <div class="surface-card table-card p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                         <div>
-                            <h3 class="fw-bold mb-1"><i class="fas fa-history text-success me-2"></i>Lịch sử giao dịch mua gói cước</h3>
-                            <p class="text-muted small mb-0">Kiểm tra biên lai chuyển khoản, duyệt hoặc từ chối các khoản thanh toán từ nhà tuyển dụng</p>
+                            <h2 class="h4 section-title mb-1"><i class="fas fa-clock-rotate-left text-success me-2"></i>Lịch sử giao dịch</h2>
+                            <p class="text-muted small mb-0">SePay tự xác nhận khoản tiền khớp mã và số tiền; admin có thể xem biên lai hoặc từ chối giao dịch chờ.</p>
                         </div>
-                        <span class="badge bg-success px-3 py-2 rounded-pill">Tổng số: {{ page_obj.paginator.count }} giao dịch</span>
+                        <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if selected_month %}month={{ selected_month }}&{% endif %}{% if query %}q={{ query|urlencode }}{% endif %}" class="badge rounded-pill text-bg-light border px-3 py-2 text-decoration-none">{{ page_obj.paginator.count }} giao dịch</a>
                     </div>
 
-                    <!-- Lọc theo trạng thái -->
                     <form method="GET" action="" class="row g-2 mb-4">
-                        {% if selected_month %}
-                            <input type="hidden" name="month" value="{{ selected_month }}">
-                        {% endif %}
-                        <div class="col-md-10">
+                        {% if selected_month %}<input type="hidden" name="month" value="{{ selected_month }}">{% endif %}
+                        <div class="col-md-7">
+                            <input type="search" name="q" value="{{ query }}" class="form-control bg-light" placeholder="Tìm tài khoản, email, gói hoặc mã giao dịch...">
+                        </div>
+                        <div class="col-md-3">
                             <select name="status" class="form-select bg-light">
-                                <option value="">-- Tất cả trạng thái giao dịch --</option>
+                                <option value="">Tất cả trạng thái</option>
                                 {% for key, label in status_choices %}
                                     <option value="{{ key }}" {% if status_filter == key %}selected{% endif %}>{{ label }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                        <div class="col-md-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-success flex-grow-1"><i class="fas fa-filter"></i><span class="d-md-none ms-1">Lọc</span></button>
+                            {% if query or status_filter %}<a href="?{% if selected_month %}month={{ selected_month }}{% endif %}" class="btn btn-outline-secondary" title="Xóa bộ lọc"><i class="fas fa-rotate-left"></i></a>{% endif %}
                         </div>
                     </form>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle transactions-table">
                             <thead class="table-light">
                                 <tr>
                                     <th class="py-3">Mã GD</th>
@@ -146,22 +227,39 @@
                                     <th class="py-3">Số tiền</th>
                                     <th class="py-3 text-center">Biên lai CK</th>
                                     <th class="py-3">Trạng thái</th>
-                                    <th class="py-3 text-center">Thao tác Admin</th>
+                                    <th class="py-3 text-center">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for tx in page_obj %}
                                 <tr>
-                                    <td><span class="text-muted fw-semibold">#{{ tx.id }}</span></td>
                                     <td>
-                                        <div class="fw-bold text-dark">{{ tx.recruiter.username }}</div>
-                                        <small class="text-muted">{{ tx.recruiter.email }}</small>
+                                        <span class="transaction-id">#{{ tx.id }}</span>
+                                        <div><small class="text-muted">{{ tx.created_at|date:"d/m/Y H:i" }}</small></div>
+                                    </td>
+                                    <td>
+                                        <div class="fw-bold text-dark">{{ tx.recruiter.display_name }}</div>
+                                        <small class="text-muted">{{ tx.recruiter.email|default:"Chưa có email" }}</small>
                                     </td>
                                     <td>
                                         <div class="fw-semibold text-success">{{ tx.package.name }}</div>
                                         <small class="text-muted">Thời hạn: {{ tx.package.duration_days }} ngày</small>
                                     </td>
-                                    <td><span class="fw-bold text-danger"><span class="money">{{ tx.package.price|floatformat:0 }}</span> VNĐ</span></td>
+                                    <td>
+                                        <span class="fw-bold text-dark"><span class="money">{{ tx.amount|floatformat:0 }}</span> đ</span>
+                                        <div><small class="text-muted">Nội dung: <code>{{ tx.payment_code }}</code></small></div>
+                                        {% if tx.sepay_transaction_id %}
+                                            <div><small class="text-success">SePay: {{ tx.sepay_transaction_id }}</small></div>
+                                            <div><small class="text-muted">Xác nhận: {{ tx.verified_at|date:"d/m/Y H:i" }}</small></div>
+                                        {% endif %}
+                                        {% if tx.sepay_received_amount %}
+                                            <div>
+                                                <small class="{% if tx.sepay_received_amount == tx.amount %}text-success{% else %}text-danger fw-semibold{% endif %}">
+                                                    SePay nhận: <span class="money">{{ tx.sepay_received_amount|floatformat:0 }}</span> đ
+                                                </small>
+                                            </div>
+                                        {% endif %}
+                                    </td>
                                     
                                     <!-- Cột hiển thị ảnh biên lai chuyển khoản -->
                                     <td class="text-center">
@@ -173,7 +271,7 @@
                                                 <div class="modal-dialog modal-dialog-centered modal-lg">
                                                     <div class="modal-content">
                                                         <div class="modal-header">
-                                                            <h5 class="modal-title">Biên lai GD #{{ tx.id }} - {{ tx.recruiter.username }}</h5>
+                                                            <h5 class="modal-title">Biên lai GD #{{ tx.id }} - {{ tx.recruiter.display_name }}</h5>
                                                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                         </div>
                                                         <div class="modal-body text-center bg-light">
@@ -189,36 +287,32 @@
                                                 </div>
                                             </div>
                                         {% else %}
-                                            <span class="text-muted small fst-italic">Không có ảnh</span>
+                                            <span class="text-muted small"><i class="fas fa-image me-1"></i>Chưa tải</span>
                                         {% endif %}
                                     </td>
 
                                     <td>
                                         {% if tx.status == 'approved' %}
-                                            <span class="badge bg-success">Đã kích hoạt</span>
+                                            <span class="status-pill status-approved"><i class="fas fa-check-circle"></i>Đã kích hoạt</span>
                                         {% elif tx.status == 'rejected' %}
-                                            <span class="badge bg-danger">Đã từ chối</span>
+                                            <span class="status-pill status-rejected"><i class="fas fa-times-circle"></i>Đã từ chối</span>
                                         {% else %}
-                                            <span class="badge bg-warning text-dark">Chờ xác nhận</span>
+                                            <span class="status-pill status-pending"><i class="fas fa-clock"></i>Chờ xác nhận</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
                                         <div class="d-flex justify-content-center gap-2">
-                                            {% if tx.status != 'approved' %}
-                                                <form action="{% url 'admin_approve_transaction' tx.id %}" method="POST" style="display:inline;">
-                                                    {% csrf_token %}
-                                                    <button type="submit" class="btn btn-outline-success btn-sm rounded-pill px-3">
-                                                        <i class="fas fa-check me-1"></i> Duyệt
-                                                    </button>
-                                                </form>
-                                            {% endif %}
-                                            {% if tx.status != 'rejected' %}
+                                            {% if tx.status == 'pending' %}
                                                 <form action="{% url 'admin_reject_transaction' tx.id %}" method="POST" style="display:inline;">
                                                     {% csrf_token %}
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="return confirm('Bạn có chắc muốn từ chối giao dịch #{{ tx.id }}?')">
                                                         <i class="fas fa-times me-1"></i> Từ chối
                                                     </button>
                                                 </form>
+                                            {% elif tx.status == 'approved' %}
+                                                <span class="small text-muted">Đã tự xác nhận</span>
+                                            {% else %}
+                                                <span class="small text-muted">Không có thao tác</span>
                                             {% endif %}
                                         </div>
                                     </td>
@@ -234,6 +328,20 @@
                             </tbody>
                         </table>
                     </div>
+
+                    {% if page_obj.has_other_pages %}
+                    <div class="topcv-pagination-wrap">
+                        <div class="d-flex align-items-center gap-3">
+                            {% if page_obj.has_previous %}
+                                <a class="topcv-page-btn" href="?q={{ query|urlencode }}&status={{ status_filter }}{% if selected_month %}&month={{ selected_month }}{% endif %}&page={{ page_obj.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
+                            {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>{% endif %}
+                            <span class="text-secondary fw-medium">Trang <strong class="text-dark">{{ page_obj.number }}</strong> / {{ page_obj.paginator.num_pages }}</span>
+                            {% if page_obj.has_next %}
+                                <a class="topcv-page-btn" href="?q={{ query|urlencode }}&status={{ status_filter }}{% if selected_month %}&month={{ selected_month }}{% endif %}&page={{ page_obj.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
+                            {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
 
                 </div>
             </div>

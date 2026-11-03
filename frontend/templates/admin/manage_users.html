@@ -6,26 +6,53 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary-color: #00b14f; }
-        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        :root { --primary-color: #00b14f; --ink: #172b4d; }
+        body { background-color: #f3f6f9; color: var(--ink); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .navbar-custom { background-color: var(--primary-color) !important; }
-        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
-        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
+        .sidebar { background: white; min-height: 85vh; border: 1px solid #e8edf2; border-radius: 1rem; }
+        .sidebar .nav-link { color: #46566b; font-weight: 500; padding: 12px 16px; border-radius: 0.65rem; margin-bottom: 5px; transition: .18s ease; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
+        .sidebar details > summary { list-style: none; cursor: pointer; }
+        .sidebar details > summary::-webkit-details-marker { display: none; }
+        .sidebar .user-status-link { padding: 8px 10px; font-size: 0.9rem; }
         .modal-content { border-radius: 1rem; border: none; }
+        .pagination .page-item.active .page-link { background-color: var(--primary-color); border-color: var(--primary-color); }
+        .pagination .page-link { color: var(--primary-color); }
+        .admin-card { border: 1px solid #e8edf2; border-radius: 1rem; }
+        .container.my-4 { max-width: 1320px; }
+        .admin-table { width: 100%; min-width: 0; table-layout: fixed; }
+        .admin-table thead th { color: #68778a; font-size: .72rem; letter-spacing: .03em; text-transform: uppercase; background: #f7f9fb; white-space: normal; }
+        .admin-table th, .admin-table td { padding: .7rem .45rem; overflow-wrap: anywhere; }
+        .admin-table tbody td { border-color: #edf1f4; }
+        .admin-table th:nth-child(1) { width: 4%; }
+        .admin-table th:nth-child(2) { width: 16%; }
+        .admin-table th:nth-child(3) { width: 24%; }
+        .admin-table th:nth-child(4) { width: 12%; }
+        .admin-table th:nth-child(5) { width: 14%; }
+        .admin-table th:nth-child(6) { width: 10%; }
+        .admin-table th:nth-child(7) { width: 20%; }
+        .user-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; }
+        .user-actions .btn { white-space: nowrap; }
+        .user-name { overflow-wrap: anywhere; }
+        .user-email { overflow-wrap: normal; }
+        .topcv-pagination-wrap { display: flex; justify-content: center; align-items: center; margin: 24px 0 4px; }
+        .topcv-page-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d1d5db; background: #fff; color: #9ca3af; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; transition: all .2s ease-in-out; }
+        .topcv-page-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #f0fdf4; }
+        .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
+        @media (max-width: 1199.98px) { .admin-table { min-width: 820px; table-layout: auto; } }
+        @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark navbar-custom shadow-sm sticky-top">
         <div class="container">
             <a class="navbar-brand fw-bold fs-4 text-white text-decoration-none d-flex align-items-center" href="{% url 'custom_admin_dashboard' %}">
-                <i class="fas fa-briefcase me-2"></i>CTJob <span class="text-warning ms-1">★</span> - Admin
+                <i class="fas fa-briefcase me-2"></i>CTJob <span class="text-warning ms-1">★</span>Admin
             </a>
         </div>
     </nav>
 
     <div class="container my-4">
-        <!-- Thông báo hệ thống (Messages) -->
         {% if messages %}
             {% for message in messages %}
                 <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm" role="alert">
@@ -41,8 +68,48 @@
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
-                        <li class="nav-item"><a class="nav-link active" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        
+                        <!-- Quản lý tài khoản xổ xuống -->
+                        <li class="nav-item">
+                            <details open>
+                                <summary class="nav-link active d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-users me-2"></i>Quản lý tài khoản</span>
+                                    
+                                </summary>
+                                <ul class="list-unstyled ms-2 mb-2 mt-1">
+                                    <li>
+                                        <a href="{% url 'admin_manage_users' %}?role=admin" class="nav-link user-status-link d-flex justify-content-between align-items-center {% if role_filter == 'admin' %}active{% endif %}">
+                                            <span><i class="fas fa-shield-alt me-2"></i>Admin</span>
+                                            <span class="badge bg-danger">{{ admin_count|default:0 }}</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="{% url 'admin_manage_users' %}?role=recruiter" class="nav-link user-status-link d-flex justify-content-between align-items-center {% if role_filter == 'recruiter' %}active{% endif %}">
+                                            <span><i class="fas fa-user-tie me-2"></i>Nhà tuyển dụng</span>
+                                            <span class="badge bg-primary">{{ recruiter_count|default:0 }}</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a href="{% url 'admin_manage_users' %}?role=candidate" class="nav-link user-status-link d-flex justify-content-between align-items-center {% if role_filter == 'candidate' %}active{% endif %}">
+                                            <span><i class="fas fa-user-graduate me-2"></i>Ứng viên</span>
+                                            <span class="badge bg-success">{{ candidate_count|default:0 }}</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                                <div class="ms-3 mb-2">
+                                    <a href="?role={{ role_filter }}&status=active" class="nav-link user-status-link d-flex justify-content-between align-items-center {% if status_filter == 'active' %}active{% endif %}">
+                                        <span>Đang hoạt động</span>
+                                        <span class="badge bg-success">{{ active_count }}</span>
+                                    </a>
+                                    <a href="?role={{ role_filter }}&status=inactive" class="nav-link user-status-link d-flex justify-content-between align-items-center {% if status_filter == 'inactive' %}active{% endif %}">
+                                        <span>Chưa kích hoạt</span>
+                                        <span class="badge bg-secondary">{{ inactive_count }}</span>
+                                    </a>
+                                </div>
+                            </details>
+                        </li>
+
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-user-tie me-2"></i> Quản lý tin nhà tuyển dụng</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_applications' %}active{% endif %}" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
                     </ul>
@@ -51,44 +118,50 @@
 
             <!-- Main Content -->
             <div class="col-md-9">
-                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                <div class="card admin-card shadow-sm p-4 bg-white">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                         <div>
-                            <h3 class="fw-bold mb-1"><i class="fas fa-users text-success me-2"></i>Danh sách tài khoản hệ thống</h3>
-                            <p class="text-muted small mb-0">Quản lý và phân quyền người dùng trên hệ thống CTJob</p>
+                            <h3 class="fw-bold mb-1"><i class="fas fa-users text-success me-2"></i>Quản lý tài khoản</h3>
+                            <p class="text-muted small mb-0">Tìm kiếm, lọc trạng thái và xử lý tài khoản trên hệ thống.</p>
                         </div>
-                        <span class="badge bg-success px-3 py-2 rounded-pill">Tổng số: {{ users.paginator.count }} tài khoản</span>
+                        <!-- Sửa lại cách gọi tổng số chính xác từ paginator -->
+                        <a href="?role={{ role_filter }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if query %}&q={{ query|urlencode }}{% endif %}" class="badge bg-success px-3 py-2 rounded-pill text-decoration-none">Tổng số: {{ total_count }} tài khoản</a>
                     </div>
 
                     <!-- Thanh tìm kiếm và bộ lọc quyền hạn -->
                     <form method="GET" action="" class="row g-2 mb-4">
+                        <input type="hidden" name="role" value="{{ role_filter }}">
                         <div class="col-md-6">
                             <div class="input-group">
                                 <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
                                 <input type="text" name="q" class="form-control border-start-0 bg-light" placeholder="Tìm kiếm tên tài khoản hoặc email..." value="{{ query }}">
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <select name="role" class="form-select bg-light">
-                                <option value="">-- Tất cả loại tài khoản --</option>
-                                {% for key, label in role_choices %}
-                                    <option value="{{ key }}" {% if role_filter == key %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
+                        <div class="col-md-3">
+                            <select name="status" class="form-select bg-light">
+                                <option value="">Mọi trạng thái</option>
+                                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Đang hoạt động</option>
+                                <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Chưa kích hoạt</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc </button>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-success flex-grow-1 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                            {% if query or status_filter %}
+                                <a href="?role={{ role_filter }}" class="btn btn-outline-secondary" title="Xóa bộ lọc"><i class="fas fa-rotate-left"></i></a>
+                            {% endif %}
                         </div>
                     </form>
 
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle admin-table">
                             <thead class="table-light">
                                 <tr>
                                     <th class="py-3">ID</th>
                                     <th class="py-3">Tên tài khoản</th>
                                     <th class="py-3">Email</th>
                                     <th class="py-3">Quyền hạn</th>
+                                    <th class="py-3">Trạng thái</th>
+                                    <th class="py-3">Ngày tham gia</th>
                                     <th class="py-3 text-center">Thao tác</th>
                                 </tr>
                             </thead>
@@ -97,9 +170,13 @@
                                 <tr>
                                     <td><span class="text-muted fw-semibold">#{{ u.id }}</span></td>
                                     <td>
-                                        <div class="fw-bold text-dark"><i class="fas fa-user-circle text-secondary me-1"></i>{{ u.username }}</div>
+                                        <div class="user-name fw-bold text-dark"><i class="fas fa-user-circle text-secondary me-1"></i>{{ u.display_name }}</div>
+                                        <small class="user-name d-block text-muted">Tài khoản: {{ u.username|default:u.email }}</small>
+                                        {% if u.is_recruiter and u.company_profile.company_name %}
+                                            <small class="user-name d-block text-muted">{{ u.company_profile.company_name }}</small>
+                                        {% endif %}
                                     </td>
-                                    <td>{{ u.email|default:"Chưa cập nhật" }}</td>
+                                    <td class="user-email text-nowrap">{{ u.email|default:"Chưa cập nhật" }}</td>
                                     <td>
                                         {% if u.is_staff or u.is_superuser %}
                                             <span class="badge bg-danger px-2 py-1">Admin</span>
@@ -110,15 +187,51 @@
                                         {% else %}
                                             <span class="badge bg-secondary px-2 py-1">User thường</span>
                                         {% endif %}
+                                        {% if u.is_recruiter and not u.is_active %}
+                                            <span class="badge bg-warning text-dark px-2 py-1">Chờ duyệt</span>
+                                        {% endif %}
                                     </td>
+                                    <td>
+                                        {% if u.is_active %}
+                                            <span class="badge rounded-pill bg-success-subtle text-success">Đang hoạt động</span>
+                                        {% else %}
+                                            <span class="badge rounded-pill bg-secondary-subtle text-secondary">Chưa kích hoạt</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><small class="text-muted">{{ u.date_joined|date:"d/m/Y" }}</small></td>
                                     <td class="text-center">
+                                        {% if u.is_recruiter and not u.is_active %}
+                                            <div class="user-actions mb-2">
+                                                {% if u.recruiter_cv %}
+                                                    <a href="{% url 'admin_recruiter_cv' u.id %}" target="_blank" rel="noopener" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+                                                        <i class="fas fa-file-alt me-1"></i> Xem CV
+                                                    </a>
+                                                {% endif %}
+                                                {% if u.recruiter_cv and u.company_profile.company_name %}
+                                                    <form action="{% url 'admin_approve_recruiter' u.id %}" method="POST" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <button type="submit" class="btn btn-success btn-sm rounded-pill px-3">
+                                                            <i class="fas fa-check me-1"></i> Duyệt
+                                                        </button>
+                                                    </form>
+                                                {% else %}
+                                                    <span class="text-danger small align-self-center">
+                                                        {% if not u.recruiter_cv %}Thiếu CV{% else %}Thiếu hồ sơ công ty{% endif %}
+                                                    </span>
+                                                {% endif %}
+                                                <form action="{% url 'admin_reject_recruiter' u.id %}" method="POST" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="return confirm('Từ chối hồ sơ nhà tuyển dụng {{ u.display_name }}?')">
+                                                        <i class="fas fa-times me-1"></i> Từ chối
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        {% endif %}
                                         {% if u != request.user %}
-                                            <!-- Nút mở Modal Xóa -->
                                             <button type="button" class="btn btn-outline-danger btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#deleteUserModal{{ u.id }}">
                                                 <i class="fas fa-trash-alt me-1"></i> Xóa
                                             </button>
 
-                                            <!-- Hộp thoại Modal Bootstrap Xóa User -->
                                             <div class="modal fade" id="deleteUserModal{{ u.id }}" tabindex="-1" aria-labelledby="deleteUserModalLabel{{ u.id }}" aria-hidden="true">
                                                 <div class="modal-dialog modal-dialog-centered">
                                                     <div class="modal-content shadow-lg p-3">
@@ -131,7 +244,8 @@
                                                         <div class="modal-body text-start py-3">
                                                             <p class="text-secondary mb-1">Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản này khỏi hệ thống không?</p>
                                                             <div class="p-3 bg-light rounded-3 mt-2 border">
-                                                                <strong>Tài khoản:</strong> <span class="text-dark">{{ u.username }}</span><br>
+                                                                <strong>Tên hiển thị:</strong> <span class="text-dark">{{ u.display_name }}</span><br>
+                                                                <strong class="small">Tài khoản:</strong> <span class="text-muted small">{{ u.username|default:u.email }}</span><br>
                                                                 <strong class="small">Email:</strong> <span class="text-muted small">{{ u.email|default:"Không có" }}</span><br>
                                                                 <small class="text-muted">Mã ID: #{{ u.id }}</small>
                                                             </div>
@@ -147,7 +261,6 @@
                                                     </div>
                                                 </div>
                                             </div>
-                                            <!-- Kết thúc Modal -->
                                         {% else %}
                                             <span class="text-muted small fst-italic">Tài khoản hiện tại</span>
                                         {% endif %}
@@ -155,9 +268,9 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-5">
+                                    <td colspan="7" class="text-center text-muted py-5">
                                         <i class="fas fa-users-slash fa-2x mb-3 text-black-50"></i>
-                                        <p class="mb-0">Không tìm thấy người dùng phù hợp.</p>
+                                        <p class="mb-0">Không tìm thấy người dùng phù hợp trong nhóm này.</p>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -165,57 +278,29 @@
                         </table>
                     </div>
 
-                    <!-- Thanh phân trang (Pagination) giữ lại query và role khi bấm chuyển trang -->
+                    <!-- Phân trang -->
                     {% if users.has_other_pages %}
-                    <nav aria-label="Page navigation" class="mt-4">
-                        <ul class="pagination justify-content-center mb-0">
+                    <div class="topcv-pagination-wrap">
+                        <div class="d-flex align-items-center gap-3">
                             {% if users.has_previous %}
-                                <li class="page-item">
-                                    <a class="page-link text-success" href="?q={{ query }}&role={{ role_filter }}&page=1" aria-label="First">
-                                        <i class="fas fa-angle-double-left"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link text-success" href="?q={{ query }}&role={{ role_filter }}&page={{ users.previous_page_number }}" aria-label="Previous">
-                                        <i class="fas fa-angle-left"></i>
-                                    </a>
-                                </li>
+                                <a class="topcv-page-btn" href="?role={{ role_filter }}&q={{ query|urlencode }}&status={{ status_filter }}&page={{ users.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
                             {% else %}
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-left"></i></span></li>
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-left"></i></span></li>
+                                <span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>
                             {% endif %}
-
-                            <li class="page-item active">
-                                <span class="page-link bg-success border-success text-white">
-                                    Trang {{ users.number }} / {{ users.paginator.num_pages }}
-                                </span>
-                            </li>
-
+                            <span class="text-secondary fw-medium">Trang <strong class="text-dark">{{ users.number }}</strong> / {{ users.paginator.num_pages }}</span>
                             {% if users.has_next %}
-                                <li class="page-item">
-                                    <a class="page-link text-success" href="?q={{ query }}&role={{ role_filter }}&page={{ users.next_page_number }}" aria-label="Next">
-                                        <i class="fas fa-angle-right"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link text-success" href="?q={{ query }}&role={{ role_filter }}&page={{ users.paginator.num_pages }}" aria-label="Last">
-                                        <i class="fas fa-angle-double-right"></i>
-                                    </a>
-                                </li>
+                                <a class="topcv-page-btn" href="?role={{ role_filter }}&q={{ query|urlencode }}&status={{ status_filter }}&page={{ users.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
                             {% else %}
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-right"></i></span></li>
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-right"></i></span></li>
+                                <span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>
                             {% endif %}
-                        </ul>
-                    </nav>
+                        </div>
+                    </div>
                     {% endif %}
 
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Bootstrap JS Bundle -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Cập nhật hồ sơ</title>
+    <title>Cập nhật hồ sơ - CTJob</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -42,6 +42,50 @@
             border-color: var(--primary-color) !important;
             box-shadow: 0 0 0 0.25rem rgba(0, 177, 79, 0.25) !important;
         }
+        .skill-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            min-height: 48px;
+            border-radius: 8px;
+            border: 1px solid #ced4da;
+            background: #fff;
+            padding: 0.7rem 0.9rem;
+            color: #495057;
+        }
+        .skill-dropdown-panel {
+            display: none;
+            border: 1px solid #e9ecef;
+            background: #ffffff;
+            border-radius: 12px;
+            margin-top: 10px;
+            padding: 12px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+            max-height: 250px;
+            overflow-y: auto;
+        }
+        .skill-option label {
+            display: flex;
+            align-items: center;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 0.6rem 0.75rem;
+            background: #fff;
+            width: 100%;
+            font-weight: 500;
+            color: #495057;
+        }
+        .skill-option label:hover {
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+        }
+        .skill-option input[type="checkbox"] {
+            width: 1rem;
+            height: 1rem;
+            margin-right: 0.5rem;
+            accent-color: var(--primary-color);
+        }
     </style>
 </head>
 
@@ -52,7 +96,10 @@
             <a class="navbar-brand fw-bold fs-4" href="{% url 'home' %}"><i class="fas fa-briefcase me-2"></i>CTJob</a>
             <div class="d-flex align-items-center">
                 {% if user.is_authenticated %}
-                    <span class="text-white me-3 d-none d-md-inline">Xin chào, <strong>{{ user.username }}</strong></span>
+                    <span class="text-white me-3 d-none d-sm-inline">
+    Xin chào, 
+    <strong>{{ user.display_name }}</strong>
+</span>
                     <form action="{% url 'logout' %}" method="post" class="d-inline">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline-light btn-sm px-3 rounded-pill">Đăng xuất</button>
@@ -98,11 +145,7 @@
                     {% csrf_token %}
 
                     <div class="mb-3">
-                        <label class="form-label fw-semibold text-secondary">Tên đăng nhập:</label>
-                        {{ u_form.username }}
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold text-secondary">Email:</label>
+                        <label class="form-label fw-semibold text-secondary">Email tài khoản:</label>
                         {{ u_form.email }}
                     </div>
                     <div class="row mb-3">
@@ -125,7 +168,7 @@
                             {{ p_form.company_name }}
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold text-secondary">Số điện thoại:</label>
+                            <label class="form-label fw-semibold text-secondary">Số điện thoại liên hệ:</label>
                             {{ p_form.phone }}
                         </div>
                         <div class="mb-3">
@@ -142,9 +185,9 @@
                         </div>
                         <div class="mb-4">
                             <label class="form-label fw-semibold text-secondary">Logo công ty:</label>
-                            {% if user.companyprofile.company_logo %}
+                            {% if user.company_profile.company_logo %}
                             <div class="mb-2">
-                                <img src="{{ user.companyprofile.company_logo.url }}" alt="Logo" class="rounded border shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
+                                <img src="{{ user.company_profile.company_logo.url }}" alt="Logo" class="rounded border shadow-sm" style="width: 80px; height: 80px; object-fit: cover;">
                             </div>
                             {% endif %}
                             {{ p_form.company_logo }}
@@ -158,17 +201,46 @@
                         </div>
 
                         <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Ngày sinh:</label>
+                            {{ p_form.birth_date }}
+                        </div>
+
+                        <!-- Địa chỉ phân cấp động -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold text-secondary">Địa chỉ liên hệ:</label>
+                            {{ p_form.address }} <!-- Input ẩn lưu chuỗi địa chỉ đầy đủ -->
+                            <div class="row g-2 mb-2">
+                                <div class="col-md-4">
+                                    <select id="province_select" class="form-select">
+                                        <option value="">-- Tỉnh/Thành phố --</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <select id="district_select" class="form-select" disabled>
+                                        <option value="">-- Quận/Huyện --</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <select id="ward_select" class="form-select" disabled>
+                                        <option value="">-- Xã/Phường --</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <input type="text" id="street_address" class="form-control" placeholder="Số nhà, tên đường (tùy chọn)">
+                        </div>
+
+                        <div class="mb-3">
                             <label class="form-label fw-semibold text-secondary">Ngành đào tạo:</label>
                             {{ p_form.major }}
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-semibold text-secondary">Kỹ năng:</label>
-                            <div class="skill-trigger form-control d-flex justify-content-between align-items-center" tabindex="0" role="button" aria-expanded="false" style="cursor: pointer;">
+                            <label class="form-label fw-semibold text-secondary">Kỹ năng chuyên môn:</label>
+                            <div class="skill-trigger form-control d-flex justify-content-between align-items-center" tabindex="0" role="button" aria-expanded="false">
                                 <span class="skill-trigger-text">Chọn kỹ năng phù hợp</span>
                                 <i class="fas fa-chevron-down small text-secondary"></i>
                             </div>
-                            <div class="skill-dropdown-panel border rounded-3 bg-light p-3 mt-2" style="display:none;">
+                            <div class="skill-dropdown-panel border rounded-3 bg-light p-3 mt-2">
                                 <div class="row g-2 skill-list" id="skill-list">
                                     <!-- Công nghệ thông tin -->
                                     <div class="col-6 skill-option" data-major="Công nghệ thông tin" data-skill="Python"><label><input type="checkbox" class="skill-checkbox" value="Python">Python</label></div>
@@ -218,7 +290,6 @@
                             {{ p_form.bio }}
                         </div>
 
-                        <!-- Bổ sung phần cập nhật ảnh đại diện (avatar) cho ứng viên -->
                         <div class="mb-4">
                             <label class="form-label fw-semibold text-secondary">Ảnh đại diện:</label>
                             {% if user.profile.avatar %}
@@ -232,11 +303,15 @@
                         <div class="mb-4">
                             <label class="form-label fw-semibold text-secondary">File CV hiện tại:</label>
                             {% if user.profile.cv_file %}
-                            <div class="mb-2">
+                            <div class="mb-2 d-flex flex-wrap align-items-center gap-2">
                                 <a href="{{ user.profile.cv_file.url }}" target="_blank"
                                     class="btn btn-outline-secondary btn-sm rounded-pill px-3 fw-semibold">
                                     <i class="fas fa-file-pdf text-danger me-1"></i> Xem CV hiện tại
                                 </a>
+                                <input type="checkbox" name="cv_file-clear" id="id_cv_file-clear" class="d-none">
+                                <button type="button" id="clear-cv-button" class="btn btn-outline-danger btn-sm rounded-pill px-3 fw-semibold" aria-pressed="false" title="Xóa CV hiện tại">
+                                    <i class="fas fa-trash-alt me-1"></i> Xóa CV
+                                </button>
                             </div>
                             {% else %}
                             <p class="text-muted small mb-2 fst-italic">Chưa có file CV nào được tải lên.</p>
@@ -257,10 +332,10 @@
         </div>
     </div>
 
-    <!-- Tự động thêm class form-control của bootstrap vào các trường input/textarea -->
+    <!-- Script xử lý giao diện Bootstrap, Kỹ năng và Địa chỉ API -->
     <script>
         document.querySelectorAll('input, textarea, select').forEach((element) => {
-            if (!element.classList.contains('form-control') && !element.classList.contains('form-select') && element.type !== 'file' && element.type !== 'checkbox') {
+            if (!element.classList.contains('form-control') && !element.classList.contains('form-select') && element.type !== 'file' && element.type !== 'checkbox' && element.type !== 'hidden') {
                 if (element.tagName === 'SELECT') {
                     element.classList.add('form-select');
                 } else {
@@ -272,107 +347,222 @@
             }
         });
 
-        const majorInputProfile = document.querySelector('#id_major');
-        const skillsInputProfile = document.querySelector('#id_skills');
-        const skillCheckboxesProfile = document.querySelectorAll('.skill-checkbox');
-        const skillOptionsProfile = document.querySelectorAll('.skill-option');
-        const skillTriggerProfile = document.querySelector('.skill-trigger');
-        const skillDropdownProfile = document.querySelector('.skill-dropdown-panel');
-        const skillTriggerTextProfile = document.querySelector('.skill-trigger-text');
-
-        const majorSkillsMapProfile = {
-            'Công nghệ thông tin': ['Python', 'Java', 'ReactJS', 'MySQL', 'Django', 'HTML/CSS', 'Node.js', 'Tester'],
-            'Quản trị kinh doanh': ['Quản lý dự án', 'Quản lý nhân sự', 'Phân tích kinh doanh', 'Microsoft Excel'],
-            'Thiết kế đồ họa': ['Photoshop', 'UI/UX Design', 'Figma'],
-            'Logistics': ['Quản lý kho', 'Quản lý chuỗi cung ứng', 'Xuất nhập khẩu', 'Microsoft Excel'],
-            'Ngôn ngữ Anh': ['English', 'Translation', 'IELTS', 'TOEIC'],
-            'Tài chính – Ngân hàng': ['Nghiệp vụ ngân hàng', 'Tín dụng ngân hàng', 'Kế toán ngân hàng', 'Chăm sóc khách hàng']
-        };
-
-        function syncProfileCheckboxes() {
-            if (!skillsInputProfile) return;
-            const currentVal = skillsInputProfile.value;
-            const skillsArray = currentVal ? currentVal.split(',').map(s => s.trim()).filter(Boolean) : [];
-            skillCheckboxesProfile.forEach(chk => {
-                chk.checked = skillsArray.includes(chk.value);
-            });
-            if (skillTriggerTextProfile) {
-                skillTriggerTextProfile.textContent = skillsArray.length ? skillsArray.join(', ') : 'Chọn kỹ năng phù hợp';
-            }
+        // Ẩn input address gốc của form Profile để thay bằng cụm chọn động
+        const hiddenAddressInput = document.querySelector('#id_address');
+        if (hiddenAddressInput) {
+            hiddenAddressInput.type = 'hidden';
         }
 
-        function refreshProfileSkillsByMajor() {
-            const currentMajor = majorInputProfile ? majorInputProfile.value : '';
-            const allowedSkills = majorSkillsMapProfile[currentMajor] || [];
+        document.addEventListener("DOMContentLoaded", function () {
+            // Logic xử lý kỹ năng
+            const majorInputProfile = document.querySelector('#id_major');
+            const skillsInputProfile = document.querySelector('#id_skills');
+            const skillCheckboxesProfile = document.querySelectorAll('.skill-checkbox');
+            const skillOptionsProfile = document.querySelectorAll('.skill-option');
+            const skillTriggerProfile = document.querySelector('.skill-trigger');
+            const skillDropdownProfile = document.querySelector('.skill-dropdown-panel');
+            const skillTriggerTextProfile = document.querySelector('.skill-trigger-text');
 
-            skillOptionsProfile.forEach(option => {
-                const skill = option.dataset.skill;
-                const optionMajor = option.dataset.major;
-                
-                // Kiểm tra xem kỹ năng có thuộc đúng ngành được chọn không
-                const isAllowed = (!currentMajor || optionMajor === currentMajor) && (allowedSkills.includes(skill));
-                
-                option.style.display = isAllowed ? 'block' : 'none';
-                const input = option.querySelector('input');
-                if (input) {
-                    input.disabled = !isAllowed;
-                    if (!isAllowed) input.checked = false;
-                }
-            });
+            const majorSkillsMapProfile = {
+                'Công nghệ thông tin': ['Python', 'Java', 'ReactJS', 'MySQL', 'Django', 'HTML/CSS', 'Node.js', 'Tester'],
+                'Quản trị kinh doanh': ['Quản lý dự án', 'Quản lý nhân sự', 'Phân tích kinh doanh', 'Microsoft Excel'],
+                'Thiết kế đồ họa': ['Photoshop', 'UI/UX Design', 'Figma'],
+                'Logistics': ['Quản lý kho', 'Quản lý chuỗi cung ứng', 'Xuất nhập khẩu', 'Microsoft Excel'],
+                'Ngôn ngữ Anh': ['English', 'Translation', 'IELTS', 'TOEIC'],
+                'Tài chính – Ngân hàng': ['Nghiệp vụ ngân hàng', 'Tín dụng ngân hàng', 'Kế toán ngân hàng', 'Chăm sóc khách hàng']
+            };
 
-            const selectedSkills = [];
-            skillCheckboxesProfile.forEach(chk => {
-                if (chk.checked && !chk.disabled) selectedSkills.push(chk.value);
-            });
-            if (skillsInputProfile) {
-                skillsInputProfile.value = selectedSkills.join(', ');
-            }
-            if (skillTriggerTextProfile) {
-                skillTriggerTextProfile.textContent = selectedSkills.length ? selectedSkills.join(', ') : 'Chọn kỹ năng phù hợp';
-            }
-        }
-
-        if (skillTriggerProfile && skillDropdownProfile) {
-            skillTriggerProfile.addEventListener('click', function (e) {
-                e.stopPropagation();
-                const isOpen = skillDropdownProfile.style.display === 'block';
-                skillDropdownProfile.style.display = isOpen ? 'none' : 'block';
-                skillTriggerProfile.setAttribute('aria-expanded', String(!isOpen));
-            });
-
-            // Ẩn dropdown khi click ra ngoài
-            document.addEventListener('click', function (e) {
-                if (!skillDropdownProfile.contains(e.target) && !skillTriggerProfile.contains(e.target)) {
-                    skillDropdownProfile.style.display = 'none';
-                    skillTriggerProfile.setAttribute('aria-expanded', 'false');
-                }
-            });
-        }
-
-        skillCheckboxesProfile.forEach(chk => {
-            chk.addEventListener('change', function () {
-                const selectedSkills = [];
-                skillCheckboxesProfile.forEach(item => {
-                    if (item.checked && !item.disabled) selectedSkills.push(item.value);
+            function syncProfileCheckboxes() {
+                if (!skillsInputProfile) return;
+                const currentVal = skillsInputProfile.value;
+                const skillsArray = currentVal ? currentVal.split(',').map(s => s.trim()).filter(Boolean) : [];
+                skillCheckboxesProfile.forEach(chk => {
+                    chk.checked = skillsArray.includes(chk.value);
                 });
-                if (skillsInputProfile) skillsInputProfile.value = selectedSkills.join(', ');
+                if (skillTriggerTextProfile) {
+                    skillTriggerTextProfile.textContent = skillsArray.length ? skillsArray.join(', ') : 'Chọn kỹ năng phù hợp';
+                }
+            }
+
+            function refreshProfileSkillsByMajor() {
+                const currentMajor = majorInputProfile ? majorInputProfile.value : '';
+                const allowedSkills = majorSkillsMapProfile[currentMajor] || [];
+
+                skillOptionsProfile.forEach(option => {
+                    const skill = option.dataset.skill;
+                    const optionMajor = option.dataset.major;
+                    const isAllowed = (!currentMajor || optionMajor === currentMajor) && (allowedSkills.includes(skill));
+                    
+                    option.style.display = isAllowed ? 'block' : 'none';
+                    const input = option.querySelector('input');
+                    if (input) {
+                        input.disabled = !isAllowed;
+                        if (!isAllowed) input.checked = false;
+                    }
+                });
+
+                const selectedSkills = [];
+                skillCheckboxesProfile.forEach(chk => {
+                    if (chk.checked && !chk.disabled) selectedSkills.push(chk.value);
+                });
+                if (skillsInputProfile) {
+                    skillsInputProfile.value = selectedSkills.join(', ');
+                }
                 if (skillTriggerTextProfile) {
                     skillTriggerTextProfile.textContent = selectedSkills.length ? selectedSkills.join(', ') : 'Chọn kỹ năng phù hợp';
                 }
+            }
+
+            if (skillTriggerProfile && skillDropdownProfile) {
+                skillTriggerProfile.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const isOpen = skillDropdownProfile.style.display === 'block';
+                    skillDropdownProfile.style.display = isOpen ? 'none' : 'block';
+                    skillTriggerProfile.setAttribute('aria-expanded', String(!isOpen));
+                });
+
+                document.addEventListener('click', function (e) {
+                    if (!skillDropdownProfile.contains(e.target) && !skillTriggerProfile.contains(e.target)) {
+                        skillDropdownProfile.style.display = 'none';
+                        skillTriggerProfile.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+
+            skillCheckboxesProfile.forEach(chk => {
+                chk.addEventListener('change', function () {
+                    const selectedSkills = [];
+                    skillCheckboxesProfile.forEach(item => {
+                        if (item.checked && !item.disabled) selectedSkills.push(item.value);
+                    });
+                    if (skillsInputProfile) skillsInputProfile.value = selectedSkills.join(', ');
+                    if (skillTriggerTextProfile) {
+                        skillTriggerTextProfile.textContent = selectedSkills.length ? selectedSkills.join(', ') : 'Chọn kỹ năng phù hợp';
+                    }
+                });
             });
+
+            if (majorInputProfile) {
+                majorInputProfile.addEventListener('change', function() {
+                    if (skillsInputProfile) skillsInputProfile.value = '';
+                    skillCheckboxesProfile.forEach(chk => chk.checked = false);
+                    refreshProfileSkillsByMajor();
+                });
+            }
+
+            syncProfileCheckboxes();
+            refreshProfileSkillsByMajor();
+
+            // Logic API Tỉnh/Thành cho Ứng viên
+            const provinceSelect = document.getElementById('province_select');
+            const districtSelect = document.getElementById('district_select');
+            const wardSelect = document.getElementById('ward_select');
+            const streetInput = document.getElementById('street_address');
+
+            if (provinceSelect) {
+                fetch('https://provinces.open-api.vn/api/p/')
+                    .then(res => res.json())
+                    .then(data => {
+                        data.forEach(p => {
+                            const opt = document.createElement('option');
+                            opt.value = p.name;
+                            opt.textContent = p.name;
+                            opt.setAttribute('data-code', p.code);
+                            provinceSelect.appendChild(opt);
+                        });
+                    });
+
+                provinceSelect.addEventListener('change', function () {
+                    const selectedOpt = this.options[this.selectedIndex];
+                    const code = selectedOpt.getAttribute('data-code');
+                    districtSelect.innerHTML = '<option value="">-- Quận/Huyện --</option>';
+                    wardSelect.innerHTML = '<option value="">-- Xã/Phường --</option>';
+                    districtSelect.disabled = true;
+                    wardSelect.disabled = true;
+
+                    if (code) {
+                        fetch(`https://provinces.open-api.vn/api/p/${code}?depth=2`)
+                            .then(res => res.json())
+                            .then(data => {
+                                data.districts.forEach(d => {
+                                    const opt = document.createElement('option');
+                                    opt.value = d.name;
+                                    opt.textContent = d.name;
+                                    opt.setAttribute('data-code', d.code);
+                                    districtSelect.appendChild(opt);
+                                });
+                                districtSelect.disabled = false;
+                            });
+                    }
+                    updateFullAddress();
+                });
+
+                districtSelect.addEventListener('change', function () {
+                    const selectedOpt = this.options[this.selectedIndex];
+                    const code = selectedOpt.getAttribute('data-code');
+                    wardSelect.innerHTML = '<option value="">-- Xã/Phường --</option>';
+                    wardSelect.disabled = true;
+
+                    if (code) {
+                        fetch(`https://provinces.open-api.vn/api/d/${code}?depth=2`)
+                            .then(res => res.json())
+                            .then(data => {
+                                data.wards.forEach(w => {
+                                    const opt = document.createElement('option');
+                                    opt.value = w.name;
+                                    opt.textContent = w.name;
+                                    wardSelect.appendChild(opt);
+                                });
+                                wardSelect.disabled = false;
+                            });
+                    }
+                    updateFullAddress();
+                });
+
+                wardSelect.addEventListener('change', updateFullAddress);
+                streetInput.addEventListener('input', updateFullAddress);
+
+                function updateFullAddress() {
+                    const street = streetInput.value.trim();
+                    const ward = wardSelect.value;
+                    const district = districtSelect.value;
+                    const province = provinceSelect.value;
+
+                    const parts = [];
+                    if (street) parts.push(street);
+                    if (ward) parts.push(ward);
+                    if (district) parts.push(district);
+                    if (province) parts.push(province);
+
+                    if (hiddenAddressInput) {
+                        hiddenAddressInput.value = parts.join(', ');
+                    }
+                }
+            }
+
+            // Xử lý nút xóa CV
+            const clearCvButton = document.querySelector('#clear-cv-button');
+            const clearCvInput = document.querySelector('#id_cv_file-clear');
+            const cvFileInput = document.querySelector('#id_cv_file');
+            if (clearCvButton && clearCvInput) {
+                clearCvButton.addEventListener('click', function () {
+                    clearCvInput.checked = !clearCvInput.checked;
+                    clearCvButton.setAttribute('aria-pressed', String(clearCvInput.checked));
+                    clearCvButton.classList.toggle('btn-danger', clearCvInput.checked);
+                    clearCvButton.classList.toggle('btn-outline-danger', !clearCvInput.checked);
+                    clearCvButton.innerHTML = clearCvInput.checked
+                        ? '<i class="fas fa-undo me-1"></i> Giữ lại CV'
+                        : '<i class="fas fa-trash-alt me-1"></i> Xóa CV';
+                });
+            }
+            if (cvFileInput && clearCvInput && clearCvButton) {
+                cvFileInput.addEventListener('change', function () {
+                    if (cvFileInput.files.length && clearCvInput.checked) {
+                        clearCvButton.click();
+                    }
+                });
+            }
         });
-
-        if (majorInputProfile) {
-            majorInputProfile.addEventListener('change', function() {
-                // Reset kỹ năng đã chọn cũ khi thay đổi ngành mới
-                if (skillsInputProfile) skillsInputProfile.value = '';
-                skillCheckboxesProfile.forEach(chk => chk.checked = false);
-                refreshProfileSkillsByMajor();
-            });
-        }
-
-        syncProfileCheckboxes();
-        refreshProfileSkillsByMajor();
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

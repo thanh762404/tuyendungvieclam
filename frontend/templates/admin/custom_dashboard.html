@@ -6,14 +6,23 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary-color: #00b14f; }
-        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        :root { --primary-color: #00b14f; --ink: #172b4d; --muted: #718096; }
+        body { background-color: #f3f6f9; color: var(--ink); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .navbar-custom { background-color: var(--primary-color) !important; }
-        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
-        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
+        .sidebar { background: white; min-height: 85vh; border: 1px solid #e8edf2; border-radius: 1rem; }
+        .sidebar .nav-link { color: #46566b; font-weight: 500; padding: 12px 16px; border-radius: 0.65rem; margin-bottom: 5px; transition: .18s ease; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
-        .card-stat { border: none; border-radius: 1rem; transition: transform 0.2s; }
+        .card-stat { border: 1px solid #e8edf2; border-radius: 1rem; transition: transform 0.2s; }
         .card-stat:hover { transform: translateY(-3px); }
+        .admin-card { border: 1px solid #e8edf2; border-radius: 1rem; }
+        .topcv-pagination-wrap { display: flex; justify-content: center; align-items: center; margin: 24px 0 4px; }
+        .topcv-page-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d1d5db; background: #fff; color: #9ca3af; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; transition: all .2s ease-in-out; }
+        .topcv-page-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #f0fdf4; }
+        .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
+        .admin-table { min-width: 760px; }
+        .admin-table thead th { color: #68778a; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; background: #f7f9fb; white-space: nowrap; }
+        .admin-table tbody td { border-color: #edf1f4; }
+        @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
     </style>
 </head>
 <body>
@@ -42,8 +51,8 @@
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'custom_admin_dashboard' %}active{% endif %}" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
-                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_users' %}active{% endif %}" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
-                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_jobs' %}active{% endif %}" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_users' %}active{% endif %}" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý tài khoản</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_jobs' %}active{% endif %}" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-user-tie me-2"></i> Quản lý tin nhà tuyển dụng</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_applications' %}active{% endif %}" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
                     </ul>
@@ -64,44 +73,44 @@
 
                 <div class="row g-3 mb-4">
                     <div class="col-md-3">
-                        <div class="card card-stat shadow-sm p-3 bg-white border-0 h-100">
+                        <a href="{% url 'admin_manage_jobs' %}?all=1" class="card card-stat shadow-sm p-3 bg-white border-0 h-100 text-decoration-none text-reset">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-muted small">Tổng việc làm</div>
                                 <span class="badge bg-success-subtle text-success rounded-pill"><i class="fas fa-briefcase"></i></span>
                             </div>
                             <div class="fs-3 fw-bold text-success">{{ total_jobs }}</div>
-                            <small class="text-muted">Bài đăng đang hoạt động</small>
-                        </div>
+                            <small class="text-muted">Tin tuyển dụng trên hệ thống</small>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="card card-stat shadow-sm p-3 bg-white border-0 h-100">
+                        <a href="{% url 'admin_manage_applications' %}" class="card card-stat shadow-sm p-3 bg-white border-0 h-100 text-decoration-none text-reset">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-muted small">Ứng tuyển</div>
                                 <span class="badge bg-primary-subtle text-primary rounded-pill"><i class="fas fa-file-alt"></i></span>
                             </div>
                             <div class="fs-3 fw-bold text-primary">{{ total_applications }}</div>
                             <small class="text-muted">Lượt nộp hồ sơ</small>
-                        </div>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="card card-stat shadow-sm p-3 bg-white border-0 h-100">
+                        <a href="{% url 'admin_manage_users' %}?role=all" class="card card-stat shadow-sm p-3 bg-white border-0 h-100 text-decoration-none text-reset">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-muted small">Người dùng</div>
                                 <span class="badge bg-warning-subtle text-warning rounded-pill"><i class="fas fa-users"></i></span>
                             </div>
                             <div class="fs-3 fw-bold text-warning">{{ total_users }}</div>
                             <small class="text-muted">Tài khoản trên hệ thống</small>
-                        </div>
+                        </a>
                     </div>
                     <div class="col-md-3">
-                        <div class="card card-stat shadow-sm p-3 bg-white border-0 h-100">
+                        <a href="{% url 'custom_admin_dashboard' %}?contact_status=pending" class="card card-stat shadow-sm p-3 bg-white border-0 h-100 text-decoration-none text-reset">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <div class="text-muted small">Yêu cầu hỗ trợ</div>
                                 <span class="badge bg-info-subtle text-info rounded-pill"><i class="fas fa-headset"></i></span>
                             </div>
-                            <div class="fs-3 fw-bold text-info">{{ pending_contact_messages|length }}</div>
+                            <div class="fs-3 fw-bold text-info">{{ pending_contact_count }}</div>
                             <small class="text-muted">Tin nhắn chưa xử lý</small>
-                        </div>
+                        </a>
                     </div>
                 </div>
 
@@ -114,39 +123,39 @@
                                 <span class="text-muted small">Theo dõi nhanh</span>
                             </div>
                             <div class="list-group list-group-flush">
-                                <div class="list-group-item px-0 py-3 d-flex align-items-center justify-content-between">
+                                <a href="{% url 'admin_manage_applications' %}" class="list-group-item list-group-item-action px-0 py-3 d-flex align-items-center justify-content-between">
                                     <div>
                                         <div class="fw-semibold">Đơn ứng tuyển mới</div>
                                         <small class="text-muted">Tổng số hồ sơ đang chờ xử lý</small>
                                     </div>
                                     <span class="badge bg-primary rounded-pill">{{ total_applications }}</span>
-                                </div>
-                                <div class="list-group-item px-0 py-3 d-flex align-items-center justify-content-between">
+                                </a>
+                                <a href="{% url 'admin_manage_jobs' %}?all=1" class="list-group-item list-group-item-action px-0 py-3 d-flex align-items-center justify-content-between">
                                     <div>
                                         <div class="fw-semibold">Công việc mới</div>
                                         <small class="text-muted">Bài đăng đang mở trên hệ thống</small>
                                     </div>
                                     <span class="badge bg-success rounded-pill">{{ total_jobs }}</span>
-                                </div>
-                                <div class="list-group-item px-0 py-3 d-flex align-items-center justify-content-between">
+                                </a>
+                                <a href="{% url 'custom_admin_dashboard' %}?contact_status=pending" class="list-group-item list-group-item-action px-0 py-3 d-flex align-items-center justify-content-between">
                                     <div>
                                         <div class="fw-semibold">Hỗ trợ chưa trả lời</div>
                                         <small class="text-muted">Tin nhắn ứng viên đang chờ xử lý</small>
                                     </div>
-                                    <span class="badge bg-warning text-dark rounded-pill">{{ pending_contact_messages|length }}</span>
-                                </div>
+                                    <span class="badge bg-warning text-dark rounded-pill">{{ pending_contact_count }}</span>
+                                </a>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white mb-4">
+                <div class="card admin-card shadow-sm p-4 bg-white mb-4">
                     <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="fw-bold mb-0">Thành viên đăng ký gần đây</h5>
                         <span class="text-muted small">Top 5 mới nhất</span>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 admin-table">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">STT</th>
@@ -160,7 +169,10 @@
                                 {% for u in users|slice:":5" %}
                                 <tr>
                                     <td class="text-muted fw-semibold">{{ forloop.counter }}</td>
-                                    <td class="fw-bold">{{ u.username }}</td>
+                                    <td>
+                                        <div class="fw-bold">{{ u.display_name }}</div>
+                                        <small class="text-muted">{{ u.email }}</small>
+                                    </td>
                                     <td>{{ u.email }}</td>
                                     <td>
                                         {% if u.is_recruiter %}
@@ -184,14 +196,20 @@
                 </div>
 
                 <!-- Bảng Yêu cầu hỗ trợ từ ứng viên -->
-                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                <div class="card admin-card shadow-sm p-4 bg-white">
                     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-                        <h5 class="fw-bold mb-0 text-success"><i class="fas fa-headset me-2"></i>Yêu cầu hỗ trợ từ ứng viên</h5>
+                        <div>
+                            <h5 class="fw-bold mb-1 text-success"><i class="fas fa-headset me-2"></i>Yêu cầu hỗ trợ</h5>
+                            <small class="text-muted">
+                                <a href="{% url 'custom_admin_dashboard' %}?contact_status={{ contact_status }}{% if contact_query %}&q={{ contact_query|urlencode }}{% endif %}" class="text-muted">{{ contact_message_count }} kết quả</a>
+                                · <a href="{% url 'custom_admin_dashboard' %}?contact_status=pending" class="text-muted">{{ pending_contact_count }} chưa xử lý</a>
+                            </small>
+                        </div>
                         
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle rounded-pill">
-                                {{ contact_messages|length }} tin nhắn
-                            </span>
+                            <a href="{% url 'custom_admin_dashboard' %}?contact_status={{ contact_status }}{% if contact_query %}&q={{ contact_query|urlencode }}{% endif %}" class="badge bg-success bg-opacity-10 text-success border border-success-subtle rounded-pill text-decoration-none">
+                                {{ contact_message_count }} tin nhắn
+                            </a>
                             
                             <!-- Nút mở Modal Xóa mục đã xử lý (Giao diện đẹp) -->
                             <button type="button" class="btn btn-outline-danger btn-sm rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#deleteResolvedModal">
@@ -230,8 +248,30 @@
                     </div>
                     <!-- KẾT THÚC MODAL -->
 
+                    <form method="GET" class="row g-2 mb-3">
+                        <div class="col-md-7">
+                            <div class="input-group">
+                                <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                                <input type="search" name="q" value="{{ contact_query }}" class="form-control bg-light border-start-0" placeholder="Tìm tên, email hoặc nội dung...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select name="contact_status" class="form-select bg-light">
+                                <option value="">Tất cả yêu cầu</option>
+                                <option value="pending" {% if contact_status == 'pending' %}selected{% endif %}>Chưa xử lý</option>
+                                <option value="replied" {% if contact_status == 'replied' %}selected{% endif %}>Đã xử lý</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex gap-2">
+                            <button type="submit" class="btn btn-success flex-grow-1"><i class="fas fa-filter"></i><span class="d-md-none ms-1">Lọc</span></button>
+                            {% if contact_query or contact_status %}
+                                <a href="{% url 'custom_admin_dashboard' %}" class="btn btn-outline-secondary" title="Xóa bộ lọc"><i class="fas fa-rotate-left"></i></a>
+                            {% endif %}
+                        </div>
+                    </form>
+
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle admin-table">
                             <thead class="table-light">
                                 <tr>
                                     <th style="width: 60px;">STT</th>
@@ -245,10 +285,10 @@
                             <tbody>
                                 {% for item in contact_messages %}
                                 <tr>
-                                    <td class="text-muted fw-semibold">{{ forloop.counter }}</td>
+                                    <td class="text-muted fw-semibold">{{ forloop.counter0|add:contact_page.start_index }}</td>
                                     <td class="fw-bold">{{ item.name }}</td>
                                     <td>{{ item.email }}</td>
-                                    <td>{{ item.message }}</td>
+                                    <td><div class="contact-message-text" title="{{ item.message }}">{{ item.message|truncatechars:120 }}</div></td>
                                     <td>{{ item.created_at|date:"d/m/Y H:i" }}</td>
                                     <td class="text-center">
                                         {% if item.is_replied %}
@@ -271,6 +311,24 @@
                                                     <h5 class="modal-title" id="replyModalLabel{{ item.id }}">Trả lời yêu cầu của: {{ item.name }}</h5>
                                                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                 </div>
+
+                                                {% if contact_page.has_other_pages %}
+                                                <div class="topcv-pagination-wrap">
+                                                    <div class="d-flex align-items-center gap-3">
+                                                        {% if contact_page.has_previous %}
+                                                            <a href="?contact_page={{ contact_page.previous_page_number }}{% if contact_query %}&q={{ contact_query|urlencode }}{% endif %}{% if contact_status %}&contact_status={{ contact_status }}{% endif %}" class="topcv-page-btn" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
+                                                        {% else %}
+                                                            <span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>
+                                                        {% endif %}
+                                                        <span class="text-secondary fw-medium"><strong class="text-dark">{{ contact_page.number }}</strong> / {{ contact_page.paginator.num_pages }} trang</span>
+                                                        {% if contact_page.has_next %}
+                                                            <a href="?contact_page={{ contact_page.next_page_number }}{% if contact_query %}&q={{ contact_query|urlencode }}{% endif %}{% if contact_status %}&contact_status={{ contact_status }}{% endif %}" class="topcv-page-btn" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
+                                                        {% else %}
+                                                            <span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                {% endif %}
                                                 <div class="modal-body text-start">
                                                     <p class="mb-2 text-muted small"><strong>Email người nhận:</strong> {{ item.email }}</p>
                                                     <p class="mb-3 text-muted small"><strong>Nội dung câu hỏi:</strong> "{{ item.message }}"</p>

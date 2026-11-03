@@ -3,6 +3,7 @@ from .views_admin import (
     admin_delete_job,
     admin_delete_user,
     admin_approve_recruiter,
+    admin_reject_recruiter,
     admin_recruiter_cv,
     admin_manage_applications,
     admin_delete_resolved_contacts,
@@ -10,7 +11,6 @@ from .views_admin import (
     admin_manage_users,
     admin_reply_contact,
     admin_reply_contact_action,
-    admin_update_job_status,
     contact_view,
     custom_admin_dashboard,
 )
@@ -22,8 +22,13 @@ from .views_candidate import (
     update_application_status,
     
 )
-from .views_chat import get_job_chat_history, get_job_chat_unread_count, send_job_chat_message
-from .views_home import extract_text_from_cv, home_view
+from .views_chat import (
+    delete_job_chat_conversation,
+    get_job_chat_history,
+    get_job_chat_unread_count,
+    send_job_chat_message,
+)
+from .views_home import home_view
 from .views_recruiter import (
     job_clone,
     job_create,
@@ -32,6 +37,7 @@ from .views_recruiter import (
     job_achieved_candidates_view,
     job_edit,
     mark_job_chat_read,
+    package_transaction_status,
     recruiter_job_list,
     recruiter_profile_view,
     buy_package_view,
@@ -39,12 +45,12 @@ from .views_recruiter import (
 )
 
 __all__ = [
-    "extract_text_from_cv",
     "home_view",
     "recruiter_profile_view",
     "my_applications_view",
     "recruiter_job_list",
     "buy_package_view",
+    "package_transaction_status",
     "mark_job_chat_read",
     "job_create",
     "job_edit",
@@ -58,14 +64,15 @@ __all__ = [
     "candidate_applications",
     "send_job_chat_message",
     "get_job_chat_history",
+    "delete_job_chat_conversation",
     "get_job_chat_unread_count",
     "custom_admin_dashboard",
     "admin_manage_users",
     "admin_delete_user",
     "admin_approve_recruiter",
+    "admin_reject_recruiter",
     "admin_recruiter_cv",
     "admin_manage_jobs",
-    "admin_update_job_status",
     "admin_delete_job",
     "admin_manage_applications",
     "admin_delete_application",

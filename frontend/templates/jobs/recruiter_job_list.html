@@ -50,6 +50,92 @@
             background-color: rgba(0, 177, 79, 0.1) !important;
             color: #00863b;
         }
+        #chat-popup-box,
+        #active-chat-window {
+            box-shadow: 0 16px 42px rgba(15, 23, 42, .2) !important;
+            border-radius: 16px !important;
+        }
+        #chat-popup-box {
+            width: min(360px, calc(100vw - 28px)) !important;
+            height: min(480px, calc(100vh - 110px)) !important;
+        }
+        #active-chat-window {
+            width: min(380px, calc(100vw - 28px)) !important;
+            height: min(520px, calc(100vh - 110px)) !important;
+        }
+        #chat-popup-box .card-header,
+        #active-chat-window .card-header {
+            padding: 14px 16px;
+        }
+        #chat-messages-body {
+            min-height: 0;
+            background:
+                radial-gradient(circle at 1px 1px, rgba(0, 177, 79, .055) 1px, transparent 0) 0 0 / 18px 18px,
+                #f8fafc !important;
+        }
+        #chat-send-form input {
+            min-width: 0;
+            min-height: 40px;
+            border-radius: 20px;
+            padding-left: 14px;
+        }
+        #chat-send-form button {
+            width: 42px;
+            flex: 0 0 42px;
+            border-radius: 50%;
+        }
+        .chat-history-bubble {
+            max-width: 82%;
+            padding: 10px 12px;
+            border-radius: 15px;
+            font-size: .86rem;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, .06);
+        }
+        .chat-history-bubble.mine {
+            border-bottom-right-radius: 5px;
+        }
+        .chat-history-bubble.theirs {
+            border-bottom-left-radius: 5px;
+        }
+        .chat-history-time {
+            display: block;
+            margin-top: 5px;
+            text-align: right;
+            font-size: .68rem;
+            opacity: .75;
+        }
+        .conversation-row {
+            display: flex;
+            align-items: stretch;
+            border-bottom: 1px solid #eef0f2;
+        }
+        .conversation-row .open-chat-box-btn {
+            min-width: 0;
+            flex: 1;
+            border: 0;
+        }
+        .delete-conversation-btn {
+            width: 42px;
+            flex: 0 0 42px;
+            border: 0;
+            background: transparent;
+            color: #87909b;
+            transition: color .15s, background-color .15s;
+        }
+        .delete-conversation-btn:hover,
+        .delete-conversation-btn:focus-visible {
+            color: #dc3545;
+            background: #fff1f2;
+        }
+        @media (max-width: 480px) {
+            #employer-chat-widget {
+                right: 14px !important;
+                bottom: 14px !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -76,7 +162,7 @@
                 
                 <!-- Nút Danh sách ứng viên đã duyệt (Mới thêm vào) -->
                 <a href="{% url 'all_approved_candidates' %}" class="btn btn-outline-success rounded-pill px-3 fw-semibold shadow-sm d-flex align-items-center gap-2">
-                    <i class="fas fa-user-check text-success"></i> DS Ứng viên đã duyệt
+                    <i class="fas fa-user-check text-success"></i> Danh Sách Ứng viên đạt
                 </a>
 
                 <!-- Nút Mua gói -->
@@ -99,6 +185,7 @@
                             <th class="py-3">Công ty</th>
                             <th class="py-3">Địa điểm</th>
                             <th class="py-3">Mức lương</th>
+                            <th class="py-3">Hồ sơ đạt </th>
                             <th class="py-3 text-center">Hành động</th>
                         </tr>
                       </thead>
@@ -110,6 +197,13 @@
                             <td>{{ job.company_name }}</td>
                             <td><i class="fas fa-map-marker-alt text-danger me-1 small"></i>{{ job.location }}</td>
                             <td class="text-danger fw-bold">{{ job.salary }}</td>
+                            <td class="small text-nowrap">
+                                <a href="{% url 'job_achieved_candidates' job.pk %}"
+                                   class="text-decoration-none fw-semibold text-success"
+                                   aria-label="Xem {{ job.hired_count }} hồ sơ đạt trên {{ job.max_hires }} chỉ tiêu">
+                                    {{ job.hired_count }} / {{ job.max_hires }}
+                                </a>
+                            </td>
                             <td class="text-center text-nowrap">
                                 <a href="{% url 'job_detail' job.pk %}" class="btn btn-sm btn-info text-white rounded-pill px-2 me-1" title="Xem chi tiết">Xem</a>
                                 <a href="{% url 'job_edit' job.pk %}" class="btn btn-sm btn-warning text-dark rounded-pill px-2 me-1" title="Cập nhật tin hiện tại">Cập nhật</a>
@@ -126,7 +220,7 @@
                           </tr>
                           {% empty %}
                           <tr>
-                              <td colspan="6" class="text-center text-muted py-5">
+                              <td colspan="7" class="text-center text-muted py-5">
                                   <i class="fas fa-folder-open fs-2 mb-2 text-black-50"></i>
                                   <p class="mb-0">Bạn chưa đăng tin tuyển dụng nào.</p>
                               </td>
@@ -153,21 +247,24 @@
         <!-- Hộp thoại danh sách ứng viên đã nhắn tin (Ẩn mặc định) -->
         <div id="chat-popup-box" class="card shadow-lg border-0 d-none" style="position: absolute; bottom: 75px; right: 0; width: 320px; height: 420px; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;">
             <div class="card-header bg-custom-primary text-white d-flex justify-content-between align-items-center py-2.5" style="background-color: var(--primary-color);">
-                <h6 class="mb-0 fw-bold"><i class="fa-solid fa-message me-2"></i>Tin nhắn từ ứng viên</h6>
+                <h6 class="mb-0 fw-bold"><i class="fa-solid fa-message me-2"></i>Hộp thư ứng viên</h6>
                 <button type="button" id="chat-close-btn" class="btn-close btn-close-white btn-sm"></button>
             </div>
             <div class="card-body p-0 overflow-auto flex-grow-1">
                 <div class="list-group list-group-flush">
                     {% for item in chat_conversations %}
-                    <a href="#" class="list-group-item list-group-item-action d-flex align-items-center py-2.5 px-3 open-chat-box-btn" 
+                    <div class="conversation-row" data-job-id="{{ item.job_id }}" data-candidate-id="{{ item.candidate.id }}" data-unread-count="{{ item.unread_count }}">
+                    <a href="#" class="list-group-item list-group-item-action d-flex align-items-center py-2.5 px-3 open-chat-box-btn"
                        data-job-id="{{ item.job_id }}" 
                        data-candidate-id="{{ item.candidate.id }}" 
-                       data-candidate-name="{{ item.candidate.username }}"
+                       data-candidate-name="{{ item.candidate.display_name }}"
                        data-unread-count="{{ item.unread_count }}">
                         <div class="flex-grow-1 overflow-hidden">
                             <div class="d-flex justify-content-between align-items-center">
-                                <h6 class="mb-0 text-dark text-truncate fw-bold" style="font-size: 14px;">{{ item.candidate.username }}</h6>
-                                <small class="text-muted" style="font-size: 11px;">{{ item.last_time|date:"H:i" }}</small>
+                                <h6 class="mb-0 text-dark text-truncate fw-bold" style="font-size: 14px;">
+                                    {{ item.candidate.display_name }}
+                                </h6>
+                                <small class="text-muted text-nowrap ms-2" style="font-size: 10px;">{{ item.last_time|date:"d/m/Y H:i" }}</small>
                             </div>
                             <p class="mb-0 text-muted text-truncate" style="font-size: 13px;">{{ item.last_message }}</p>
                         </div>
@@ -175,6 +272,10 @@
                             <span class="badge bg-danger rounded-pill ms-2">{{ item.unread_count }}</span>
                         {% endif %}
                     </a>
+                    <button type="button" class="delete-conversation-btn" title="Xóa cuộc trò chuyện" aria-label="Xóa cuộc trò chuyện với ứng viên">
+                        <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                    </button>
+                    </div>
                     {% empty %}
                     <div class="text-center py-5 text-muted">
                         <i class="fa-regular fa-comment-dots fs-2 mb-2"></i>
@@ -190,7 +291,10 @@
             <div class="card-header bg-custom-primary text-white d-flex justify-content-between align-items-center py-2.5" style="background-color: var(--primary-color);">
                 <div class="d-flex align-items-center">
                     <button type="button" id="back-to-list-btn" class="btn btn-sm text-white p-0 me-2 border-0 bg-transparent"><i class="fa-solid fa-arrow-left"></i></button>
-                    <h6 class="mb-0 fw-bold" id="active-chat-name" style="font-size: 14px;">Tên ứng viên</h6>
+                    <div>
+                        <h6 class="mb-0 fw-bold" id="active-chat-name" style="font-size: 14px;">Tên ứng viên</h6>
+                        <small class="text-white-50">Trao đổi về hồ sơ ứng tuyển</small>
+                    </div>
                 </div>
                 <button type="button" id="active-chat-close-btn" class="btn-close btn-close-white btn-sm"></button>
             </div>
@@ -199,13 +303,13 @@
                 <div class="text-center text-muted small my-auto">Đang tải tin nhắn...</div>
             </div>
 
-            <div class="card-footer p-2 bg-white border-top">
+            <div class="card-footer p-3 bg-white border-top">
                 <form id="chat-send-form" class="d-flex gap-1">
                     {% csrf_token %}
                     <input type="hidden" id="active-job-id" value="">
                     <input type="hidden" id="active-candidate-id" value="">
-                    <input type="text" id="chat-input-message" class="form-control form-control-sm" placeholder="Nhập tin nhắn..." autocomplete="off" required>
-                    <button type="submit" class="btn btn-success-custom btn-sm"><i class="fa-solid fa-paper-plane"></i></button>
+                    <input type="text" id="chat-input-message" class="form-control form-control-sm" placeholder="Nhập tin nhắn cho ứng viên..." autocomplete="off" maxlength="1000" required>
+                    <button type="submit" class="btn btn-success-custom btn-sm" aria-label="Gửi tin nhắn"><i class="fa-solid fa-paper-plane"></i></button>
                 </form>
             </div>
         </div>
@@ -298,6 +402,8 @@
                         }
 
                         this.setAttribute('data-unread-count', '0');
+                        const conversationRow = this.closest('.conversation-row');
+                        if (conversationRow) conversationRow.dataset.unreadCount = '0';
 
                         const mainBadge = document.querySelector('#chat-toggle-btn .badge');
                         if (mainBadge) {
@@ -305,7 +411,7 @@
                             if (currentTotal > 0) {
                                 mainBadge.textContent = currentTotal;
                             } else {
-                               mainBadge.remove();
+                                mainBadge.remove();
                             }
                         }
                     }
@@ -325,14 +431,16 @@
                     chatMessagesBody.innerHTML = '';
                     if(data.messages && data.messages.length > 0) {
                         data.messages.forEach(msg => {
-                            const isMe = msg.is_me;
-                            const alignClass = isMe ? 'ms-auto text-white' : 'me-auto bg-white text-dark border';
-                            const customBgStyle = isMe ? 'background-color: #00b14f;' : '';
-                            const bubble = `<div class="p-2 rounded-3 small ${alignClass}" style="max-width: 75%; word-break: break-word; ${customBgStyle}">
-                                ${msg.message}
-                                <div style="font-size: 9px; opacity: 0.8; text-align: right;" class="mt-1">${msg.created_at}</div>
-                            </div>`;
-                            chatMessagesBody.innerHTML += bubble;
+                            const bubble = document.createElement('div');
+                            bubble.className = `chat-history-bubble ${msg.is_me ? 'mine ms-auto text-white' : 'theirs me-auto bg-white text-dark border'}`;
+                            if (msg.is_me) bubble.style.backgroundColor = '#00b14f';
+                            const messageText = document.createElement('div');
+                            messageText.textContent = msg.message;
+                            const timestamp = document.createElement('time');
+                            timestamp.className = 'chat-history-time';
+                            timestamp.textContent = msg.created_at;
+                            bubble.append(messageText, timestamp);
+                            chatMessagesBody.appendChild(bubble);
                         });
                         chatMessagesBody.scrollTop = chatMessagesBody.scrollHeight;
                     } else {
@@ -343,6 +451,54 @@
                     chatMessagesBody.innerHTML = '<div class="text-center text-danger small my-auto">Không thể tải tin nhắn.</div>';
                 });
         }
+
+        const conversationList = document.querySelector('#chat-popup-box .list-group');
+        conversationList.addEventListener('click', async event => {
+            const deleteButton = event.target.closest('.delete-conversation-btn');
+            if (!deleteButton) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const conversationRow = deleteButton.closest('.conversation-row');
+            const jobId = conversationRow.dataset.jobId;
+            const candidateId = conversationRow.dataset.candidateId;
+            const confirmed = await Swal.fire({
+                title: 'Xóa cuộc trò chuyện này?',
+                text: 'Toàn bộ tin nhắn trong cuộc trò chuyện sẽ bị xóa. Hồ sơ ứng tuyển của ứng viên không bị ảnh hưởng.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                confirmButtonText: 'Xóa',
+                cancelButtonText: 'Hủy'
+            });
+            if (!confirmed.isConfirmed) return;
+
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            try {
+                const response = await fetch(`/jobs/${jobId}/chat/${candidateId}/delete-conversation/`, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {'X-Requested-With': 'XMLHttpRequest'}
+                });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'success') {
+                    throw new Error(data.error || 'Không thể xóa cuộc trò chuyện.');
+                }
+                conversationRow.remove();
+                const unreadCount = Number(conversationRow.dataset.unreadCount) || 0;
+                const totalBadge = document.querySelector('#chat-toggle-btn .badge');
+                if (totalBadge && unreadCount) {
+                    const remainingUnread = Math.max(0, Number(totalBadge.textContent) - unreadCount);
+                    if (remainingUnread) totalBadge.textContent = remainingUnread;
+                    else totalBadge.remove();
+                }
+                if (!conversationList.querySelector('.conversation-row')) {
+                    conversationList.innerHTML = '<div class="text-center py-5 text-muted"><i class="fa-regular fa-comment-dots fs-2 mb-2"></i><p class="mb-0 small">Chưa có cuộc trò chuyện nào.</p></div>';
+                }
+            } catch (error) {
+                await Swal.fire('Không thể xóa', error.message || 'Đã xảy ra lỗi khi xóa tin nhắn.', 'error');
+            }
+        });
 
         const chatSendForm = document.getElementById('chat-send-form');
         if (chatSendForm) {

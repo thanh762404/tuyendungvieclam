@@ -1,6 +1,4 @@
 from django.contrib import admin
-from django.utils import timezone
-from datetime import timedelta
 from .models import (
     Job, 
     Application, 
@@ -47,34 +45,35 @@ class RecruiterAccountAdmin(admin.ModelAdmin):
 
 @admin.register(PackageTransaction)
 class PackageTransactionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'recruiter', 'package', 'amount', 'status', 'created_at')
+    list_display = (
+        'id',
+        'recruiter',
+        'package',
+        'amount',
+        'payment_code',
+        'sepay_transaction_id',
+        'status',
+        'created_at',
+    )
     list_filter = ('status', 'created_at')
-    search_fields = ('recruiter__username', 'recruiter__email')
-    actions = ['approve_transactions']
-
-    def approve_transactions(self, request, queryset):
-        """Hành động duyệt nhanh: Kích hoạt gói cước và tự động cộng số tin cho nhà tuyển dụng"""
-        count = 0
-        for tx in queryset.filter(status='pending'):
-            tx.status = 'approved'
-            tx.save()
-            
-            # Cập nhật hoặc tạo tài khoản NTD
-            recruiter_acc, _ = RecruiterAccount.objects.get_or_create(user=tx.recruiter)
-            recruiter_acc.active_package = tx.package
-            recruiter_acc.posts_remaining += tx.package.post_limit
-            
-            # Tính thời hạn gói cước
-            now = timezone.now()
-            if recruiter_acc.package_expires_at and recruiter_acc.package_expires_at > now:
-                recruiter_acc.package_expires_at += timedelta(days=tx.package.duration_days)
-            else:
-                recruiter_acc.package_expires_at = now + timedelta(days=tx.package.duration_days)
-                
-            recruiter_acc.save()
-            count += 1
-            
-        self.message_user(request, f"Đã duyệt thành công {count} giao dịch và cộng tin vào tài khoản nhà tuyển dụng.")
-    approve_transactions.short_description = "Duyệt giao dịch đã chọn (Cộng gói cước)"
+    search_fields = (
+        'recruiter__username',
+        'recruiter__email',
+        'payment_code',
+        'sepay_transaction_id',
+    )
+    readonly_fields = (
+        'recruiter',
+        'package',
+        'amount',
+        'payment_code',
+        'sepay_transaction_id',
+        'verified_at',
+        'proof_image',
+        'status',
+        'created_at',
+        'recruiter_name',
+        'package_name',
+    )
 
 admin.site.register(ContactMessage)

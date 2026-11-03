@@ -14,6 +14,58 @@ from docx import Document
 from accounts.forms import ProfileUpdateForm, SignUpForm
 from accounts.models import Profile, User
 from accounts.views import profile_edit_view, signup_view
+from jobs.models import CompanyProfile
+
+
+class UserDisplayNameTests(TestCase):
+	def test_recruiter_display_name_uses_company_name(self):
+		recruiter = User.objects.create_user(
+			username='representative',
+			email='representative@example.com',
+			password='test-password',
+			first_name='Representative',
+			is_recruiter=True,
+		)
+		CompanyProfile.objects.create(user=recruiter, company_name='Công ty Minh An')
+
+		self.assertEqual(recruiter.display_name, 'Công ty Minh An')
+
+	def test_recruiter_without_company_profile_does_not_show_representative_name(self):
+		recruiter = User.objects.create_user(
+			username='representative',
+			email='representative@example.com',
+			password='test-password',
+			first_name='Representative',
+			is_recruiter=True,
+		)
+
+		self.assertEqual(recruiter.display_name, 'Nhà tuyển dụng')
+
+	def test_recruiter_email_placeholder_is_not_displayed_as_company_name(self):
+		recruiter = User.objects.create_user(
+			username='representative@example.com',
+			email='representative@example.com',
+			password='test-password',
+			is_recruiter=True,
+		)
+		CompanyProfile.objects.create(
+			user=recruiter,
+			company_name=recruiter.email,
+		)
+
+		self.assertEqual(recruiter.display_name, 'Nhà tuyển dụng')
+
+	def test_candidate_display_name_keeps_personal_name(self):
+		candidate = User.objects.create_user(
+			username='candidate',
+			email='candidate@example.com',
+			password='test-password',
+			first_name='Nguyễn',
+			last_name='An',
+			is_candidate=True,
+		)
+
+		self.assertEqual(candidate.display_name, 'Nguyễn An')
 
 
 class CandidateProfileCvSkillSyncTests(TestCase):
@@ -191,11 +243,81 @@ class SignupDuplicateUsernameTests(TestCase):
 
 
 class RecruiterSignupApprovalTests(TestCase):
+	def test_signup_saves_the_company_name_for_display(self):
+		with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+			response = self.client.post(
+				'/accounts/signup/',
+				{
+					'email': 'representative@example.com',
+					'first_name': 'Nguyễn',
+					'last_name': 'An',
+					'password1': 'StrongPassword!9284',
+					'password2': 'StrongPassword!9284',
+					'role': 'recruiter',
+					'company_name': 'Công ty Minh An',
+					'company_address': 'Đà Nẵng',
+					'phone': '0123456789',
+					'recruiter_cv': SimpleUploadedFile(
+						'recruiter-cv.pdf',
+						b'%PDF-1.4 test',
+						content_type='application/pdf',
+					),
+				},
+			)
+
+		recruiter = User.objects.get(email='representative@example.com')
+		recruiter.refresh_from_db()
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(recruiter.display_name, 'Công ty Minh An')
+		self.assertEqual(recruiter.company_profile.address, 'Đà Nẵng')
+
+	def test_recruiter_signup_requires_company_name(self):
+		form = SignUpForm(
+			data={
+				'email': 'recruiter@example.com',
+				'company_name': '   ',
+				'password1': 'StrongPassword!9284',
+				'password2': 'StrongPassword!9284',
+				'role': 'recruiter',
+				'phone': '0123456789',
+			},
+			files={
+				'recruiter_cv': SimpleUploadedFile(
+					'recruiter-cv.pdf', b'%PDF-1.4 test', content_type='application/pdf'
+				)
+			},
+		)
+
+		self.assertFalse(form.is_valid())
+		self.assertIn('company_name', form.errors)
+
+	def test_recruiter_signup_requires_company_address(self):
+		form = SignUpForm(
+			data={
+				'email': 'recruiter@example.com',
+				'company_name': 'Công ty Minh An',
+				'company_address': '   ',
+				'password1': 'StrongPassword!9284',
+				'password2': 'StrongPassword!9284',
+				'role': 'recruiter',
+				'phone': '0123456789',
+			},
+			files={
+				'recruiter_cv': SimpleUploadedFile(
+					'recruiter-cv.pdf', b'%PDF-1.4 test', content_type='application/pdf'
+				)
+			},
+		)
+
+		self.assertFalse(form.is_valid())
+		self.assertIn('company_address', form.errors)
+
 	def test_recruiter_signup_requires_cv(self):
 		form = SignUpForm(
 			data={
 				'username': 'new-recruiter',
 				'email': 'recruiter@example.com',
+				'company_name': 'Công ty Minh An',
 				'password1': 'StrongPassword!9284',
 				'password2': 'StrongPassword!9284',
 				'role': 'recruiter',
@@ -211,6 +333,7 @@ class RecruiterSignupApprovalTests(TestCase):
 			data={
 				'username': 'new-recruiter',
 				'email': 'recruiter@example.com',
+				'company_name': 'Công ty Minh An',
 				'password1': 'StrongPassword!9284',
 				'password2': 'StrongPassword!9284',
 				'role': 'recruiter',

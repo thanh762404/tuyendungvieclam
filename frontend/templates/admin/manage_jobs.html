@@ -6,15 +6,36 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary-color: #00b14f; }
-        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        :root { --primary-color: #00b14f; --ink: #172b4d; }
+        body { background-color: #f3f6f9; color: var(--ink); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .navbar-custom { background-color: var(--primary-color) !important; }
-        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
-        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
+        .sidebar { background: white; min-height: 85vh; border: 1px solid #e8edf2; border-radius: 1rem; }
+        .sidebar .nav-link { color: #46566b; font-weight: 500; padding: 12px 16px; border-radius: 0.65rem; margin-bottom: 5px; transition: .18s ease; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
+        .sidebar details > summary { list-style: none; cursor: pointer; }
+        .sidebar details > summary::-webkit-details-marker { display: none; }
+        .sidebar .recruiter-status-link { padding: 8px 10px; font-size: 0.9rem; }
+        .overview-kicker { color: #168653; font-size: 0.75rem; font-weight: 700; }
+        .overview-stat { border-right: 1px solid #e9ecef; }
+        .overview-stat:last-child { border-right: 0; }
+        .recruiter-row { color: inherit; transition: background-color .15s ease; }
+        .recruiter-row:hover { background-color: #f5faf7; }
+        .recruiter-avatar { width: 40px; height: 40px; flex: 0 0 40px; }
+        .status-choice { color: #212529; transition: background-color .15s ease; }
+        .status-choice:hover { color: #087b3d; background-color: #f5faf7; }
+        .status-icon { width: 42px; height: 42px; flex: 0 0 42px; }
         .modal-content { border-radius: 1rem; border: none; }
         .pagination .page-item.active .page-link { background-color: var(--primary-color); border-color: var(--primary-color); }
         .pagination .page-link { color: var(--primary-color); }
+        .admin-card { border: 1px solid #e8edf2; border-radius: 1rem; }
+        .admin-table { min-width: 860px; }
+        .admin-table thead th { color: #68778a; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; background: #f7f9fb; white-space: nowrap; }
+        .admin-table tbody td { border-color: #edf1f4; }
+        .topcv-pagination-wrap { display: flex; justify-content: center; align-items: center; margin: 24px 0 4px; }
+        .topcv-page-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d1d5db; background: #fff; color: #9ca3af; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; transition: all .2s ease-in-out; }
+        .topcv-page-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #f0fdf4; }
+        .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
+        @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
     </style>
 </head>
 <body>
@@ -43,8 +64,36 @@
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
-                        <li class="nav-item"><a class="nav-link active" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý tài khoản</a></li>
+                        <li class="nav-item">
+                            <details {% if selected_recruiter %}open{% endif %}>
+                                <summary class="nav-link active d-flex justify-content-between align-items-center">
+                                    <span><i class="fas fa-user-tie me-2"></i>Quản lý tin nhà tuyển dụng</span>
+                                </summary>
+                                <ul class="list-unstyled ms-2 mb-2">
+                                    {% for recruiter in recruiters %}
+                                    <li>
+                                        <a href="?recruiter={{ recruiter.pk }}&all=1" class="nav-link d-flex justify-content-between align-items-center {% if selected_recruiter.pk == recruiter.pk %}active{% endif %}">
+                                            <span class="text-truncate"><i class="fas fa-user-tie me-2"></i>{{ recruiter.display_name }}</span>
+                                            <span class="badge bg-light text-secondary">{{ recruiter.job_count }}</span>
+                                        </a>
+                                        {% if selected_recruiter.pk == recruiter.pk %}
+                                        <div class="ms-3 mb-2">
+                                            <a href="?recruiter={{ recruiter.pk }}&all=1&status=active" class="nav-link recruiter-status-link d-flex justify-content-between {% if status_filter == 'active' %}active{% endif %}">
+                                                <span>Tin còn hạn</span><span class="badge bg-success">{{ recruiter.active_job_count }}</span>
+                                            </a>
+                                            <a href="?recruiter={{ recruiter.pk }}&all=1&status=expired" class="nav-link recruiter-status-link d-flex justify-content-between {% if status_filter == 'expired' %}active{% endif %}">
+                                                <span>Tin hết hạn</span><span class="badge bg-secondary">{{ recruiter.expired_job_count }}</span>
+                                            </a>
+                                        </div>
+                                        {% endif %}
+                                    </li>
+                                    {% empty %}
+                                    <li class="small text-muted px-3 py-2">Chưa có nhà tuyển dụng.</li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
+                        </li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_applications' %}active{% endif %}" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
                     </ul>
@@ -53,50 +102,66 @@
 
             <!-- Main Content -->
             <div class="col-md-9">
-                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                <div class="card admin-card shadow-sm p-4 bg-white">
+                    {% if selected_recruiter or all_jobs_view %}
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-                        <div>
-                            <h3 class="fw-bold mb-1"><i class="fas fa-briefcase text-success me-2"></i>Danh sách tin tuyển dụng</h3>
-                            <p class="text-muted small mb-0">Quản lý và theo dõi các bài đăng việc làm trực tiếp từ nhà tuyển dụng trên hệ thống CTJob</p>
-                        </div>
-                        <span class="badge bg-success px-3 py-2 rounded-pill">Tổng số: {{ paginator.count }} tin tuyển dụng</span>
-                    </div>
-
-                    <!-- Thanh tìm kiếm và bộ lọc trạng thái -->
-                    <form method="GET" action="" class="row g-2 mb-4">
-                        <div class="col-md-7">
-                            <div class="input-group">
-                                <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                                <input type="text" name="q" class="form-control border-start-0 bg-light" placeholder="Tìm kiếm theo tiêu đề công việc hoặc tên công ty..." value="{{ request.GET.q }}">
+                        {% if selected_recruiter %}
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="recruiter-avatar rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-1">{{ selected_recruiter.display_name }}</h3>
+                                <div class="small text-muted">Tài khoản đăng nhập: {{ selected_recruiter.username|default:selected_recruiter.email }}</div>
+                                <div class="small text-muted">{{ selected_recruiter.email|default:"Chưa cập nhật email" }}</div>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <select name="status" class="form-select bg-light border-0">
-                                <option value="">-- Tất cả trạng thái --</option>
-                                <option value="new" {% if status_filter == 'new' %}selected{% endif %}>Mới</option>
-                                <option value="urgent" {% if status_filter == 'urgent' %}selected{% endif %}>Sắp hết hạn</option>
-                                <option value="expired" {% if status_filter == 'expired' %}selected{% endif %}>Hết hạn</option>
-                            </select>
+                        {% if status_filter == 'active' %}
+                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=active" class="badge bg-success px-3 py-2 text-decoration-none">Tin còn hạn: {{ active_job_count }}</a>
+                        {% elif status_filter == 'expired' %}
+                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=expired" class="badge bg-secondary px-3 py-2 text-decoration-none">Tin hết hạn: {{ expired_job_count }}</a>
+                        {% else %}
+                            <span class="badge {% if selected_recruiter.is_active %}bg-success{% else %}bg-warning text-dark{% endif %} px-3 py-2">
+                                {% if selected_recruiter.is_active %}Đang hoạt động{% else %}Chưa kích hoạt{% endif %}
+                            </span>
+                        {% endif %}
+                        {% else %}
+                        <div>
+                            <span class="overview-kicker text-uppercase">CTJob · Quản trị</span>
+                            <h3 class="fw-bold mb-1">Tất cả tin tuyển dụng</h3>
+                            <div class="small text-muted">Theo dõi và quản lý các tin đã đăng trên hệ thống.</div>
                         </div>
-                        <div class="col-md-2">
-                            <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if selected_recruiter or all_jobs_view %}
+                    <form method="GET" class="row g-2 mb-3">
+                        {% if selected_recruiter %}<input type="hidden" name="recruiter" value="{{ selected_recruiter.pk }}">{% endif %}
+                        {% if all_jobs_view %}<input type="hidden" name="all" value="1">{% endif %}
+                        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+                        <div class="col-md-9">
+                            <input type="search" name="q" value="{{ query }}" class="form-control bg-light" placeholder="Tìm tiêu đề hoặc tên công ty...">
+                        </div>
+                        <div class="col-md-3 d-flex gap-2">
+                            <button type="submit" class="btn btn-success flex-grow-1"><i class="fas fa-search me-1"></i>Lọc tin</button>
+                            {% if query %}<a href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if status_filter %}status={{ status_filter }}{% endif %}" class="btn btn-outline-secondary" title="Xóa tìm kiếm"><i class="fas fa-rotate-left"></i></a>{% endif %}
                         </div>
                     </form>
-
                     <div class="table-responsive">
-                        <table class="table table-hover align-middle">
+                        <table class="table table-hover align-middle admin-table">
                             <thead class="table-light">
                                 <tr>
                                     <th class="py-3">ID</th>
                                     <th class="py-3">Tiêu đề công việc</th>
                                     <th class="py-3">Công ty</th>
                                     <th class="py-3">Địa điểm</th>
-                                    <th class="py-3">Trạng thái</th>
+                                    <th class="py-3">Hạn tin</th>
                                     <th class="py-3 text-center">Thao tác</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for job in page_obj %}
+                                {% for job in jobs %}
                                 <tr>
                                     <td><span class="text-muted fw-semibold">#{{ job.id }}</span></td>
                                     <td>
@@ -105,19 +170,15 @@
                                                 {{ job.title }} <i class="fas fa-external-link-alt small text-muted ms-1"></i>
                                             </a>
                                         </div>
-                                        <small class="text-muted">Đăng bởi: {{ job.recruiter.username }}</small>
+                                        <small class="text-muted">Hạn nộp: {{ job.expires_at|date:"d/m/Y H:i"|default:"Không đặt hạn" }}</small>
                                     </td>
-                                    <td>{{ job.company_name|default:"Chưa cập nhật" }}</td>
+                                    <td>{{ job.get_company_name|default:"Chưa cập nhật" }}</td>
                                     <td>{{ job.location|default:"Không rõ" }}</td>
                                     <td>
-                                        <!-- Gọi đúng các thuộc tính @property từ Model của bạn -->
                                         {% if job.is_expired_status %}
                                             <span class="badge bg-secondary">Hết hạn</span>
-                                        {% elif job.is_urgent_status %}
-                                            <span class="badge bg-warning text-dark">Sắp hết hạn</span>
-                                        {% elif job.is_new_status %}
-                                            <span class="badge bg-success">Mới</span>
-                                        
+                                        {% else %}
+                                            <span class="badge bg-success">Còn hạn</span>
                                         {% endif %}
                                     </td>
                                     <td class="text-center">
@@ -139,7 +200,7 @@
                                                         <p class="text-secondary mb-1">Bạn có chắc chắn muốn xóa vĩnh viễn bài đăng tuyển dụng này không?</p>
                                                         <div class="p-3 bg-light rounded-3 mt-2 border">
                                                             <strong>Tiêu đề:</strong> <span class="text-dark">{{ job.title }}</span><br>
-                                                            <strong class="small">Công ty:</strong> <span class="text-muted small">{{ job.company_name|default:"Không có" }}</span><br>
+                                                            <strong class="small">Công ty:</strong> <span class="text-muted small">{{ job.get_company_name|default:"Không có" }}</span><br>
                                                             <small class="text-muted">Mã ID: #{{ job.id }}</small>
                                                         </div>
                                                         <p class="text-danger small mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Thao tác này không thể hoàn tác!</p>
@@ -148,6 +209,10 @@
                                                         <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Hủy bỏ</button>
                                                         <form action="{% url 'admin_delete_job' job.id %}" method="POST" style="display:inline;">
                                                             {% csrf_token %}
+                                                            {% if all_jobs_view %}<input type="hidden" name="return_all" value="1">{% endif %}
+                                                            {% if selected_recruiter %}<input type="hidden" name="return_recruiter" value="{{ selected_recruiter.pk }}">{% endif %}
+                                                            <input type="hidden" name="return_status" value="{{ status_filter }}">
+                                                            <input type="hidden" name="return_q" value="{{ query }}">
                                                             <button type="submit" class="btn btn-danger rounded-pill px-4">Xác nhận xóa</button>
                                                         </form>
                                                     </div>
@@ -158,57 +223,139 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="6" class="text-center text-muted py-5">
-                                        <i class="fas fa-folder-open fa-2x mb-3 text-black-50"></i>
-                                        <p class="mb-0">Chưa có tin tuyển dụng nào trong hệ thống.</p>
+                                    <td colspan="6" class="text-center text-muted py-3">
+                                        Nhà tuyển dụng chưa có tin nào thuộc nhóm này.
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
                     </div>
-
-                    <!-- Phân trang -->
-                    {% if is_paginated %}
-                    <nav class="mt-4" aria-label="Page navigation">
-                        <ul class="pagination justify-content-center mb-0">
-                            {% if page_obj.has_previous %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="First">
-                                        <i class="fas fa-angle-double-left"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="Previous">
-                                        <i class="fas fa-angle-left"></i>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-left"></i></span></li>
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-left"></i></span></li>
-                            {% endif %}
-
-                            <li class="page-item disabled">
-                                <span class="page-link text-dark fw-semibold">Trang {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
-                            </li>
-
-                            {% if page_obj.has_next %}
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="Next">
-                                        <i class="fas fa-angle-right"></i>
-                                    </a>
-                                </li>
-                                <li class="page-item">
-                                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" aria-label="Last">
-                                        <i class="fas fa-angle-double-right"></i>
-                                    </a>
-                                </li>
-                            {% else %}
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-right"></i></span></li>
-                                <li class="page-item disabled"><span class="page-link"><i class="fas fa-angle-double-right"></i></span></li>
-                            {% endif %}
-                        </ul>
-                    </nav>
+                    {% if job_page.has_other_pages %}
+                    <div class="topcv-pagination-wrap">
+                        <div class="d-flex align-items-center gap-3">
+                            {% if job_page.has_previous %}
+                                <a class="topcv-page-btn" href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}q={{ query|urlencode }}&page={{ job_page.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
+                            {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>{% endif %}
+                            <span class="text-secondary fw-medium">Trang <strong class="text-dark">{{ job_page.number }}</strong> / {{ job_page.paginator.num_pages }}</span>
+                            {% if job_page.has_next %}
+                                <a class="topcv-page-btn" href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}q={{ query|urlencode }}&page={{ job_page.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
+                            {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% elif selected_recruiter %}
+                        <div class="row g-0 border-top border-bottom py-3 mb-3 text-center">
+                            <div class="col-4 overview-stat py-2">
+                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1" class="text-decoration-none text-reset">
+                                    <div class="h4 fw-bold mb-1">{{ selected_recruiter_job_count }}</div>
+                                    <div class="small text-muted">Tổng số tin</div>
+                                </a>
+                            </div>
+                            <div class="col-4 overview-stat py-2">
+                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=active" class="text-decoration-none text-reset">
+                                    <div class="h4 fw-bold text-success mb-1">{{ active_job_count }}</div>
+                                    <div class="small text-muted">Còn hạn</div>
+                                </a>
+                            </div>
+                            <div class="col-4 overview-stat py-2">
+                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=expired" class="text-decoration-none text-reset">
+                                    <div class="h4 fw-bold text-secondary mb-1">{{ expired_job_count }}</div>
+                                    <div class="small text-muted">Hết hạn</div>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="list-group list-group-flush">
+                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=active" class="list-group-item list-group-item-action status-choice d-flex align-items-center gap-3 py-3 px-2">
+                                <span class="status-icon rounded-3 bg-success-subtle text-success d-flex align-items-center justify-content-center"><i class="fas fa-circle-check"></i></span>
+                                <span class="flex-grow-1">
+                                    <span class="d-block fw-semibold">Tin còn hạn</span>
+                                    <span class="small text-muted">Các tin vẫn đang nhận hồ sơ</span>
+                                </span>
+                                <span class="badge bg-success rounded-pill">{{ active_job_count }}</span>
+                                <i class="fas fa-chevron-right small text-muted"></i>
+                            </a>
+                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=expired" class="list-group-item list-group-item-action status-choice d-flex align-items-center gap-3 py-3 px-2">
+                                <span class="status-icon rounded-3 bg-secondary-subtle text-secondary d-flex align-items-center justify-content-center"><i class="fas fa-clock"></i></span>
+                                <span class="flex-grow-1">
+                                    <span class="d-block fw-semibold">Tin hết hạn</span>
+                                    <span class="small text-muted">Các tin đã quá hạn nộp hồ sơ</span>
+                                </span>
+                                <span class="badge bg-secondary rounded-pill">{{ expired_job_count }}</span>
+                                <i class="fas fa-chevron-right small text-muted"></i>
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="mb-4">
+                            <span class="overview-kicker text-uppercase">CTJob · Quản trị</span>
+                            <h2 class="fw-bold mt-1 mb-2">Nhà tuyển dụng</h2>
+                            <p class="text-muted mb-0">Tổng quan tài khoản và trạng thái tin tuyển dụng.</p>
+                        </div>
+                        <div class="row g-0 border-top border-bottom py-3 mb-4 text-center">
+                            <div class="col-4 overview-stat py-2">
+                                <a href="{% url 'admin_manage_users' %}?role=recruiter{% if query %}&q={{ query|urlencode }}{% endif %}" class="text-decoration-none text-reset">
+                                    <div class="h3 fw-bold mb-1">{{ recruiter_count }}</div>
+                                    <div class="small text-muted">Nhà tuyển dụng</div>
+                                </a>
+                            </div>
+                            <div class="col-4 overview-stat py-2">
+                                <a href="?all=1&status=active" class="text-decoration-none text-reset">
+                                    <div class="h3 fw-bold text-success mb-1">{{ job_summary.active }}</div>
+                                    <div class="small text-muted">Tin còn hạn</div>
+                                </a>
+                            </div>
+                            <div class="col-4 overview-stat py-2">
+                                <a href="?all=1&status=expired" class="text-decoration-none text-reset">
+                                    <div class="h3 fw-bold text-secondary mb-1">{{ job_summary.expired }}</div>
+                                    <div class="small text-muted">Tin hết hạn</div>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold mb-0">Danh sách nhà tuyển dụng</h5>
+                            <span class="small text-muted"><a href="{% url 'admin_manage_users' %}?role=recruiter{% if query %}&q={{ query|urlencode }}{% endif %}" class="text-muted">{{ recruiter_count }} tài khoản</a> · <a href="?all=1" class="text-success">{{ job_summary.total }} tin tuyển dụng</a></span>
+                        </div>
+                        <form method="GET" class="row g-2 mb-3">
+                            <div class="col-md-9">
+                                <input type="search" name="q" value="{{ query }}" class="form-control bg-light" placeholder="Tìm tên tài khoản hoặc email...">
+                            </div>
+                            <div class="col-md-3 d-flex gap-2">
+                                <button type="submit" class="btn btn-success flex-grow-1"><i class="fas fa-search me-1"></i>Tìm</button>
+                                {% if query %}<a href="{% url 'admin_manage_jobs' %}" class="btn btn-outline-secondary" title="Xóa tìm kiếm"><i class="fas fa-rotate-left"></i></a>{% endif %}
+                            </div>
+                        </form>
+                        <div class="list-group list-group-flush">
+                            {% for recruiter in recruiter_page %}
+                            <a href="?recruiter={{ recruiter.pk }}&all=1" class="list-group-item list-group-item-action recruiter-row d-flex align-items-center gap-3 px-2 py-3">
+                                <span class="recruiter-avatar rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center"><i class="fas fa-user-tie"></i></span>
+                                <span class="flex-grow-1">
+                                    <span class="d-block fw-semibold">{{ recruiter.display_name }}</span>
+                                    <span class="small text-muted d-block">Tài khoản: {{ recruiter.username|default:recruiter.email }}</span>
+                                    <span class="small text-muted">{{ recruiter.email|default:"Chưa cập nhật email" }}</span>
+                                </span>
+                                <span class="text-end me-2">
+                                    <span class="d-block fw-semibold">{{ recruiter.job_count }}</span>
+                                    <span class="small text-muted">tin</span>
+                                </span>
+                                <i class="fas fa-chevron-right small text-muted"></i>
+                            </a>
+                            {% empty %}
+                            <div class="text-muted py-4">Chưa có tài khoản nhà tuyển dụng.</div>
+                            {% endfor %}
+                        </div>
+                        {% if recruiter_page.has_other_pages %}
+                        <div class="topcv-pagination-wrap">
+                            <div class="d-flex align-items-center gap-3">
+                                {% if recruiter_page.has_previous %}
+                                    <a class="topcv-page-btn" href="?q={{ query|urlencode }}&page={{ recruiter_page.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
+                                {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>{% endif %}
+                                <span class="text-secondary fw-medium">Trang <strong class="text-dark">{{ recruiter_page.number }}</strong> / {{ recruiter_page.paginator.num_pages }}</span>
+                                {% if recruiter_page.has_next %}
+                                    <a class="topcv-page-btn" href="?q={{ query|urlencode }}&page={{ recruiter_page.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
+                                {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>{% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
                     {% endif %}
 
                 </div>

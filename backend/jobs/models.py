@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import uuid
 
 from accounts.models import User
 from django.db import models
@@ -7,6 +8,10 @@ from django.utils import timezone
 
 HIRING_CAPACITY_STATUSES = ('InterviewPassed', 'Trial', 'Hired')
 HIRING_PIPELINE_STATUSES = HIRING_CAPACITY_STATUSES
+
+
+def generate_package_payment_code():
+    return f"CTJ{uuid.uuid4().hex[:12].upper()}"
 
 
 class CompanyProfile(models.Model):
@@ -38,7 +43,9 @@ class CompanyProfile(models.Model):
     description = models.TextField(
         blank=True, null=True, verbose_name="Giới thiệu công ty"
     )
-
+    # 👉 THÊM 2 TRƯỜNG NÀY ĐỂ QUẢN LÝ TRẠNG THÁI VÀ THỜI GIAN DUYỆT CỦA ADMIN
+    is_approved = models.BooleanField(default=False, verbose_name="Đã được Admin duyệt")
+    approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Thời gian Admin duyệt")
     def __str__(self):
         return self.company_name
 
@@ -134,6 +141,29 @@ class PackageTransaction(models.Model):
   amount = models.DecimalField(
       max_digits=10, decimal_places=0, verbose_name="Số tiền thanh toán"
   )
+  payment_code = models.CharField(
+      max_length=15,
+      unique=True,
+      default=generate_package_payment_code,
+      verbose_name="Mã nội dung thanh toán",
+  )
+  sepay_transaction_id = models.CharField(
+      max_length=100,
+      blank=True,
+      null=True,
+      unique=True,
+      verbose_name="Mã giao dịch SePay",
+  )
+  sepay_received_amount = models.DecimalField(
+      max_digits=10,
+      decimal_places=0,
+      blank=True,
+      null=True,
+      verbose_name="Số tiền nhận từ SePay",
+  )
+  verified_at = models.DateTimeField(
+      blank=True, null=True, verbose_name="Thời gian xác nhận thanh toán"
+  )
   proof_image = models.ImageField(
       upload_to="payment_proofs/",
       blank=True,
@@ -217,7 +247,7 @@ class Job(models.Model):
             ("Approved", "Đã duyệt"),
             ("Rejected", "Từ chối"),
         ],
-        default="Pending",
+        default="Approved",
         verbose_name="Trạng thái duyệt",
     )
 
@@ -311,7 +341,17 @@ class Application(models.Model):
         verbose_name="Trạng thái",
     )
     updated_at = models.DateTimeField(auto_now=True)
-
+    # 👉 THÊM HÀM NÀY ĐỂ TRẢ VỀ CHUỖI TIẾNG VIỆT CHUẨN XÁC
+    def get_status_display_vi(self):
+        status_map = {
+            'Pending': 'Đang chờ duyệt',
+            'Approved': 'Đã duyệt / Phỏng vấn',
+            'InterviewPassed': 'Đạt phỏng vấn',
+            'Trial': 'Đang thử việc',
+            'Hired': 'Đã nhận / Đang đi làm',
+            'Rejected': 'Từ chối',
+        }
+        return status_map.get(self.status, self.status)
     interview_details = models.TextField(
         blank=True,
         null=True,
@@ -344,12 +384,28 @@ class Application(models.Model):
         return ""
 
     @property
-    def interview_note(self):
+    def interview_location(self):
         if not self.interview_details:
             return ""
         for line in self.interview_details.splitlines():
-            if line.lower().startswith("nội dung:"):
+            normalized_line = line.strip().lower()
+            if normalized_line.startswith(("địa điểm:", "địa điểm hẹn:")):
                 return line.split(":", 1)[1].strip()
+        return ""
+
+    @property
+    def interview_note(self):
+        if not self.interview_details:
+            return ""
+
+        lines = self.interview_details.splitlines()
+        for index, line in enumerate(lines):
+            normalized_line = line.strip().lower()
+            if normalized_line.startswith(
+                ("ghi chú:", "nội dung:", "nội dung/địa điểm:")
+            ):
+                note_lines = [line.split(":", 1)[1].strip(), *lines[index + 1 :]]
+                return "\n".join(note_lines).strip()
         return ""
 
     @property
@@ -461,3 +517,32 @@ class ContactMessage(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.email}"
+    
+class Notification(models.Model):
+    """Bảng lưu trữ thông báo thời gian thực cho User (Ứng viên hoặc Nhà tuyển dụng)"""
+    
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        verbose_name="Người nhận thông báo",
+    )
+    title = models.CharField(max_length=255, verbose_name="Tiêu đề thông báo", default="Thông báo hệ thống")
+    message = models.TextField(verbose_name="Nội dung chi tiết")
+    is_read = models.BooleanField(default=False, verbose_name="Đã đọc")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian tạo")
+
+    # Lưu thêm các trường hỗ trợ hiển thị (tùy chọn)
+    job_title = models.CharField(max_length=255, blank=True, null=True, verbose_name="Tên công việc liên quan")
+    company_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Tên công ty")
+    application = models.ForeignKey(
+        Application,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="notifications",
+        verbose_name="Đơn ứng tuyển liên quan",
+    )
+
+    def __str__(self):
+        return f"Thông báo cho {self.recipient.username} - {self.title}"

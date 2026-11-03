@@ -42,6 +42,15 @@
         .breadcrumb-custom a:hover {
             color: var(--primary-color);
         }
+        .schedule-field-label {
+            display: flex;
+            align-items: flex-end;
+            min-height: 2.8rem;
+        }
+        #schedule-fields input {
+            width: 100%;
+            min-height: 42px;
+        }
     </style>
 </head>
 <body class="bg-light">
@@ -69,14 +78,22 @@
                 <h3 class="mb-4 fw-bold text-custom-primary text-center">Cập Nhật Đơn Ứng Tuyển</h3>
                 
                 <div class="bg-light p-3 rounded-3 mb-4 border">
-                    <p class="mb-2"><strong><i class="fas fa-user text-muted me-2"></i>Ứng viên:</strong> <span class="text-dark fw-semibold">{{ application.candidate.username }}</span></p>
+                    <p class="mb-2"><strong><i class="fas fa-user text-muted me-2"></i>Ứng viên:</strong> <span class="text-dark fw-semibold">{{ application.candidate.display_name }}</span></p>
                     <p class="mb-0"><strong><i class="fas fa-briefcase text-muted me-2"></i>Công việc:</strong> <span class="text-dark fw-semibold">{{ application.job.title }}</span></p>
+                    {% if application.cv_file %}
+                        <a href="{{ application.cv_file.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success mt-3">
+                            <i class="fas fa-file-arrow-down me-1"></i>Xem CV ứng viên
+                        </a>
+                    {% endif %}
                 </div>
 
                 {% if application.needs_interview_reminder %}
                     <div class="alert alert-warning border-0 rounded-3 mb-4 small">
                         <i class="fas fa-bell me-2"></i> {{ application.interview_reminder_message }}
                     </div>
+                {% endif %}
+                {% if status_error %}
+                    <div class="alert alert-danger border-0 rounded-3 mb-4 small" role="alert">{{ status_error }}</div>
                 {% endif %}
                 
                 <form method="post">
@@ -85,26 +102,37 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold text-dark">Trạng thái đơn:</label>
                         <select name="status" class="form-select rounded-3 py-2">
-                            <option value="Pending" {% if application.status == 'Pending' %}selected{% endif %}>Đang chờ duyệt</option>
-                            <option value="Approved" {% if application.status == 'Approved' %}selected{% endif %}>Đã duyệt / Phỏng vấn</option>
-                            <option value="Rejected" {% if application.status == 'Rejected' %}selected{% endif %}>Từ chối</option>
+                            <option value="Pending" {% if selected_status == 'Pending' or not selected_status and application.status == 'Pending' %}selected{% endif %}>Đang chờ duyệt</option>
+                            <option value="Approved" {% if selected_status == 'Approved' or not selected_status and application.status == 'Approved' %}selected{% endif %}>Đã duyệt / Phỏng vấn</option>
+                            <option value="InterviewPassed" {% if selected_status == 'InterviewPassed' or not selected_status and application.status == 'InterviewPassed' %}selected{% endif %}>Đạt phỏng vấn</option>
+                            <option value="Trial" {% if selected_status == 'Trial' or not selected_status and application.status == 'Trial' %}selected{% endif %}>Đang thử việc</option>
+                            <option value="Hired" {% if selected_status == 'Hired' or not selected_status and application.status == 'Hired' %}selected{% endif %}>Đã nhận / Đang đi làm</option>
+                            <option value="Rejected" {% if selected_status == 'Rejected' or not selected_status and application.status == 'Rejected' %}selected{% endif %}>Từ chối</option>
                         </select>
                     </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-dark">Ngày hẹn:</label>
-                            <input type="date" name="interview_date" class="form-control rounded-3 py-2" value="{{ interview_date }}">
+                    <div id="schedule-fields">
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">
+                                <label id="date-label" for="interview-date" class="form-label fw-bold text-dark schedule-field-label">Ngày hẹn:</label>
+                                <input id="interview-date" type="date" name="interview_date" class="form-control rounded-3 py-2" value="{{ interview_date }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label id="time-label" for="interview-time" class="form-label fw-bold text-dark schedule-field-label">Giờ hẹn:</label>
+                                <input id="interview-time" type="time" name="interview_time" class="form-control rounded-3 py-2" value="{{ interview_time }}">
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label fw-bold text-dark">Giờ hẹn:</label>
-                            <input type="time" name="interview_time" class="form-control rounded-3 py-2" value="{{ interview_time }}">
-                        </div>
-                    </div>
 
-                    <div class="mb-4">
-                        <label class="form-label fw-bold text-dark">Nội dung điểm hẹn:</label>
-                        <textarea name="interview_note" class="form-control rounded-3" rows="4" placeholder="Ví dụ: Phỏng vấn vòng 2 tại văn phòng, địa điểm: ... hoặc link Zoom: ...">{{ interview_note }}</textarea>
+                        <div class="mb-4">
+                            <label for="interview-location" class="form-label fw-bold text-dark">Địa điểm hẹn:</label>
+                            <input id="interview-location" type="text" class="form-control rounded-3" value="{{ interview_location|default:'Chưa cập nhật địa chỉ trong hồ sơ nhà tuyển dụng' }}" readonly>
+                            <div class="form-text">Địa điểm được lấy từ địa chỉ công ty trong hồ sơ nhà tuyển dụng.</div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label id="note-label" for="interview-note" class="form-label fw-bold text-dark">Ghi chú (không bắt buộc):</label>
+                            <textarea id="interview-note" name="interview_note" class="form-control rounded-3" rows="4" placeholder="Nhập ghi chú cho ứng viên...">{{ interview_note }}</textarea>
+                        </div>
                     </div>
 
                     <div class="d-grid">
@@ -114,5 +142,54 @@
             </div>
         </div>
     </div>
+    <script>
+        const statusSelect = document.querySelector('select[name="status"]');
+        const scheduleFields = document.getElementById('schedule-fields');
+        const dateLabel = document.getElementById('date-label');
+        const timeLabel = document.getElementById('time-label');
+        const noteLabel = document.getElementById('note-label');
+        const scheduleDate = document.getElementById('interview-date');
+        const scheduleTime = document.getElementById('interview-time');
+        const scheduleNote = document.getElementById('interview-note');
+
+        function getScheduleType(status) {
+            if (status === 'Approved') return 'interview';
+            if (['InterviewPassed', 'Trial', 'Hired'].includes(status)) return 'work';
+            return 'none';
+        }
+
+        let previousScheduleType = getScheduleType(statusSelect.value);
+
+        function updateScheduleFields() {
+            const scheduleType = getScheduleType(statusSelect.value);
+            if (scheduleType !== previousScheduleType) {
+                scheduleDate.value = '';
+                scheduleTime.value = '';
+                scheduleNote.value = '';
+            }
+
+            scheduleFields.hidden = scheduleType === 'none';
+            if (scheduleType === 'interview') {
+                dateLabel.textContent = 'Ngày phỏng vấn:';
+                timeLabel.textContent = 'Giờ phỏng vấn:';
+                noteLabel.textContent = 'Ghi chú (không bắt buộc):';
+                scheduleNote.placeholder = 'Nhập ghi chú cho ứng viên...';
+                scheduleDate.required = true;
+                scheduleTime.required = true;
+            } else if (scheduleType === 'work') {
+                dateLabel.textContent = 'Ngày bắt đầu thử việc/đi làm (không bắt buộc):';
+                timeLabel.textContent = 'Giờ bắt đầu (không bắt buộc):';
+                noteLabel.textContent = 'Ghi chú (không bắt buộc):';
+                scheduleNote.placeholder = 'Nhập ghi chú cho ứng viên...';
+                scheduleDate.required = false;
+                scheduleTime.required = false;
+            }
+
+            previousScheduleType = scheduleType;
+        }
+
+        statusSelect.addEventListener('change', updateScheduleFields);
+        updateScheduleFields();
+    </script>
 </body>
 </html>

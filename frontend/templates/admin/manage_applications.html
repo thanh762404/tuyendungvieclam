@@ -6,16 +6,28 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --primary-color: #00b14f; }
-        body { background-color: #f4f5f7; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        :root { --primary-color: #00b14f; --ink: #172b4d; }
+        body { background-color: #f3f6f9; color: var(--ink); font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .navbar-custom { background-color: var(--primary-color) !important; }
-        .sidebar { background: white; min-height: 85vh; border-radius: 1rem; }
-        .sidebar .nav-link { color: #333; font-weight: 500; padding: 12px 20px; border-radius: 0.5rem; margin-bottom: 5px; }
+        .sidebar { background: white; min-height: 85vh; border: 1px solid #e8edf2; border-radius: 1rem; }
+        .sidebar .nav-link { color: #46566b; font-weight: 500; padding: 12px 16px; border-radius: 0.65rem; margin-bottom: 5px; transition: .18s ease; }
         .sidebar .nav-link:hover, .sidebar .nav-link.active { background-color: rgba(0, 177, 79, 0.1); color: var(--primary-color); }
         .modal-content { border-radius: 1rem; border: none; }
         .job-group-card { border: 1px solid #e2e8f0; border-radius: 0.75rem; background: #fff; margin-bottom: 1rem; box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); overflow: hidden; }
         .job-header { background-color: #f8f9fa; padding: 1rem 1.25rem; border-bottom: 1px solid #e2e8f0; cursor: pointer; transition: background-color 0.2s; }
         .job-header:hover { background-color: #f1f3f5; }
+        .admin-card { border: 1px solid #e8edf2; border-radius: 1rem; }
+        .admin-table { min-width: 700px; }
+        .admin-table thead th { color: #68778a; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; background: #f7f9fb; white-space: nowrap; }
+        .admin-table tbody td { border-color: #edf1f4; }
+        .topcv-pagination-wrap { display: flex; justify-content: center; align-items: center; margin: 24px 0 4px; }
+        .topcv-page-btn { width: 38px; height: 38px; border-radius: 50%; border: 1px solid #d1d5db; background: #fff; color: #9ca3af; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; transition: all .2s ease-in-out; }
+        .topcv-page-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #f0fdf4; }
+        .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
+        .application-stat-link { display: block; color: inherit; text-decoration: none; border-radius: .75rem; transition: transform .16s ease, box-shadow .16s ease; }
+        .application-stat-link:hover { color: inherit; transform: translateY(-2px); box-shadow: 0 .35rem .9rem rgba(23, 43, 77, .12); }
+        .application-stat-link:focus-visible { outline: 3px solid rgba(0, 177, 79, .35); outline-offset: 3px; }
+        @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
     </style>
 </head>
 <body>
@@ -43,8 +55,8 @@
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý Người dùng</a></li>
-                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-briefcase me-2"></i> Quản lý Việc làm</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_users' %}"><i class="fas fa-users me-2"></i> Quản lý tài khoản</a></li>
+                        <li class="nav-item"><a class="nav-link" href="{% url 'admin_manage_jobs' %}"><i class="fas fa-user-tie me-2"></i> Quản lý tin nhà tuyển dụng</a></li>
                         <li class="nav-item"><a class="nav-link active" href="{% url 'admin_manage_applications' %}"><i class="fas fa-file-alt me-2"></i> Quản lý Đơn ứng tuyển</a></li>
                         <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'admin_manage_transactions' %}active{% endif %}" href="{% url 'admin_manage_transactions' %}"><i class="fas fa-wallet me-2"></i> Quản lý Giao dịch & Gói cước</a></li>
                     </ul>
@@ -53,13 +65,52 @@
 
             <!-- Main Content -->
             <div class="col-md-9">
-                <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
+                <div class="card admin-card shadow-sm p-4 bg-white">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                         <div>
-                            <h3 class="fw-bold mb-1"><i class="fas fa-file-alt text-success me-2"></i>Quản lý đơn ứng tuyển theo bài đăng</h3>
-                            <p class="text-muted small mb-0">Mỗi bài tuyển dụng hiển thị 1 lần, bấm vào tiêu đề để xem danh sách ứng viên</p>
+                            <h3 class="fw-bold mb-1"><i class="fas fa-file-alt text-success me-2"></i>Quản lý đơn ứng tuyển</h3>
+                            <p class="text-muted small mb-0">Tìm, lọc và xem hồ sơ ứng viên được gom theo từng tin tuyển dụng.</p>
                         </div>
-                        <span class="badge bg-success px-3 py-2 rounded-pill">Tổng số đơn: {{ total_count }}</span>
+                        <a href="?{% if status_filter %}status={{ status_filter }}&{% endif %}{% if query %}q={{ query|urlencode }}{% endif %}" class="badge bg-success px-3 py-2 rounded-pill text-decoration-none">Tổng số đơn: {{ total_count }}</a>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-6 col-lg-2">
+                            <a class="application-stat-link p-3 bg-warning-subtle h-100" href="?status=Pending{% if query %}&q={{ query|urlencode }}{% endif %}">
+                                <div class="small text-muted">Chờ duyệt</div>
+                                <div class="h4 fw-bold text-warning-emphasis mb-0">{{ application_stats.pending }}</div>
+                            </a>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <a class="application-stat-link p-3 bg-success-subtle h-100" href="?status=Approved{% if query %}&q={{ query|urlencode }}{% endif %}">
+                                <div class="small text-muted">Đã duyệt</div>
+                                <div class="h4 fw-bold text-success mb-0">{{ application_stats.approved }}</div>
+                            </a>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <a class="application-stat-link p-3 bg-primary-subtle h-100" href="?status=InterviewPassed{% if query %}&q={{ query|urlencode }}{% endif %}">
+                                <div class="small text-muted">Đạt phỏng vấn</div>
+                                <div class="h4 fw-bold text-primary mb-0">{{ application_stats.interview_passed }}</div>
+                            </a>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <a class="application-stat-link p-3 bg-info-subtle h-100" href="?status=Trial{% if query %}&q={{ query|urlencode }}{% endif %}">
+                                <div class="small text-muted">Thử việc</div>
+                                <div class="h4 fw-bold text-info-emphasis mb-0">{{ application_stats.trial }}</div>
+                            </a>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <a class="application-stat-link p-3 bg-dark-subtle h-100" href="?status=Hired{% if query %}&q={{ query|urlencode }}{% endif %}">
+                                <div class="small text-muted">Đã nhận việc</div>
+                                <div class="h4 fw-bold text-dark mb-0">{{ application_stats.hired }}</div>
+                            </a>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <a class="application-stat-link p-3 bg-danger-subtle h-100" href="?status=Rejected{% if query %}&q={{ query|urlencode }}{% endif %}">
+                                <div class="small text-muted">Từ chối</div>
+                                <div class="h4 fw-bold text-danger mb-0">{{ application_stats.rejected }}</div>
+                            </a>
+                        </div>
                     </div>
 
                     <!-- Thanh tìm kiếm và lọc -->
@@ -67,19 +118,22 @@
                         <div class="col-md-7">
                             <div class="input-group">
                                 <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                                <input type="text" name="q" class="form-control border-start-0 bg-light" placeholder="Tìm tên ứng viên hoặc tên công việc..." value="{{ request.GET.q }}">
+                                <input type="search" name="q" class="form-control border-start-0 bg-light" placeholder="Tìm ứng viên, email, công ty hoặc công việc..." value="{{ query }}">
                             </div>
                         </div>
                         <div class="col-md-3">
                             <select name="status" class="form-select bg-light">
                                 <option value="">-- Tất cả trạng thái --</option>
-                                <option value="Pending" {% if request.GET.status == 'Pending' %}selected{% endif %}>Chờ duyệt</option>
-                                <option value="Approved" {% if request.GET.status == 'Approved' %}selected{% endif %}>Đã duyệt</option>
-                                <option value="Rejected" {% if request.GET.status == 'Rejected' %}selected{% endif %}>Từ chối</option>
+                                {% for value, label in application_status_choices %}
+                                    <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="col-md-2">
-                            <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="fas fa-filter me-1"></i> Lọc</button>
+                                {% if query or status_filter %}<a href="{% url 'admin_manage_applications' %}" class="btn btn-outline-secondary" title="Xóa bộ lọc"><i class="fas fa-rotate-left"></i></a>{% endif %}
+                            </div>
                         </div>
                     </form>
 
@@ -93,7 +147,7 @@
                                     <h6 class="fw-bold text-dark mb-1">
                                         <i class="fas fa-briefcase text-success me-2"></i>{{ job_item.title }}
                                     </h6>
-                                    <small class="text-muted">Công ty: {{ job_item.company_name|default:"Không rõ" }} | Mã tin: #{{ job_item.id }}</small>
+                                    <small class="text-muted">Công ty: {{ job_item.recruiter.display_name }} | Mã tin: #{{ job_item.id }}</small>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
                                     <span class="badge bg-primary px-3 py-2 rounded-pill">
@@ -106,7 +160,7 @@
                             <!-- Danh sách ứng viên nộp vào bài này (Thu gọn mặc định) -->
                             <div class="collapse" id="jobCollapse{{ job_item.id }}">
                                 <div class="table-responsive mb-0">
-                                    <table class="table table-hover align-middle mb-0">
+                                    <table class="table table-hover align-middle mb-0 admin-table">
                                         <thead class="table-light text-muted small">
                                             <tr>
                                                 <th class="ps-4">ID Đơn</th>
@@ -120,18 +174,27 @@
                                             {% for item in applications %}
                                                 {% if item.job_id == job_item.id %}
                                                 <tr>
-                                                    <td class="ps-4"><span class="text-muted fw-semibold">#{{ item.id }}</span></td>
-                                                    <td>
-                                                        <div class="fw-semibold text-dark">{{ item.candidate.username }}</div>
-                                                        <small class="text-muted">{{ item.candidate.email }}</small>
+                                                    <td class="ps-4">
+                                                        <span class="text-muted fw-semibold">#{{ item.id }}</span>
+                                                        <div><small class="text-muted">{{ item.applied_at|date:"d/m/Y H:i" }}</small></div>
                                                     </td>
                                                     <td>
-                                                        {% if item.status == 'Approved' %}
-                                                            <span class="badge bg-success">Đã duyệt</span>
-                                                        {% elif item.status == 'Rejected' %}
+                                                        <div class="fw-semibold text-dark">{{ item.candidate.display_name }}</div>
+                                                        <small class="text-muted">{{ item.candidate.email|default:"Chưa cập nhật email" }}</small>
+                                                    </td>
+                                                    <td>
+                                                        {% if item.status == 'Rejected' %}
                                                             <span class="badge bg-danger">Từ chối</span>
-                                                        {% else %}
+                                                        {% elif item.status == 'Pending' %}
                                                             <span class="badge bg-warning text-dark">Chờ duyệt</span>
+                                                        {% elif item.status == 'Trial' %}
+                                                            <span class="badge bg-info text-dark">Đang thử việc</span>
+                                                        {% elif item.status == 'Hired' %}
+                                                            <span class="badge bg-dark">Đã nhận việc</span>
+                                                        {% elif item.status == 'InterviewPassed' %}
+                                                            <span class="badge bg-primary">Đạt phỏng vấn</span>
+                                                        {% else %}
+                                                            <span class="badge bg-success">Đã duyệt / Phỏng vấn</span>
                                                         {% endif %}
                                                     </td>
                                                     <td>
@@ -158,11 +221,12 @@
                                                                         </h5>
                                                                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                                                     </div>
+
                                                                     <div class="modal-body text-start py-3">
                                                                         <p class="text-secondary mb-1">Bạn có chắc chắn muốn xóa đơn ứng tuyển này không?</p>
                                                                         <div class="p-3 bg-light rounded-3 mt-2 border">
                                                                             <strong>Công việc:</strong> <span class="text-dark">{{ item.job.title }}</span><br>
-                                                                            <strong class="small">Ứng viên:</strong> <span class="text-muted small">{{ item.candidate.username }}</span><br>
+                                                                            <strong class="small">Ứng viên:</strong> <span class="text-muted small">{{ item.candidate.display_name }}</span><br>
                                                                             <small class="text-muted">Mã đơn: #{{ item.id }}</small>
                                                                         </div>
                                                                     </div>
@@ -192,6 +256,20 @@
                         </div>
                         {% endfor %}
                     </div>
+
+                    {% if job_page.has_other_pages %}
+                    <div class="topcv-pagination-wrap">
+                        <div class="d-flex align-items-center gap-3">
+                            {% if job_page.has_previous %}
+                                <a class="topcv-page-btn" href="?q={{ query|urlencode }}&status={{ status_filter }}&page={{ job_page.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
+                            {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>{% endif %}
+                            <span class="text-secondary fw-medium">Trang <strong class="text-dark">{{ job_page.number }}</strong> / {{ job_page.paginator.num_pages }}</span>
+                            {% if job_page.has_next %}
+                                <a class="topcv-page-btn" href="?q={{ query|urlencode }}&status={{ status_filter }}&page={{ job_page.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
+                            {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>{% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
 
                 </div>
             </div>

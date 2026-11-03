@@ -1,5 +1,5 @@
-from datetime import timedelta
 import mimetypes
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
@@ -10,10 +10,11 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from .models import Application, ContactMessage, Job, PackageTransaction, RecruiterAccount
+from .models import Application, ContactMessage, Job, PackageTransaction
 
 
 @staff_member_required
@@ -22,48 +23,101 @@ def custom_admin_dashboard(request):
     total_jobs = Job.objects.count()
     total_applications = Application.objects.count()
     total_users = User.objects.count()
-    users = User.objects.all().order_by("-date_joined")
+    users = User.objects.select_related(
+        "profile", "company_profile"
+    ).order_by("-date_joined")[:5]
+    contact_query = request.GET.get("q", "").strip()
+    contact_status = request.GET.get("contact_status", "").strip()
     contact_messages = ContactMessage.objects.all().order_by("-created_at")
+    if contact_query:
+        contact_messages = contact_messages.filter(
+            Q(name__icontains=contact_query)
+            | Q(email__icontains=contact_query)
+            | Q(message__icontains=contact_query)
+        )
+    if contact_status == "pending":
+        contact_messages = contact_messages.filter(is_replied=False)
+    elif contact_status == "replied":
+        contact_messages = contact_messages.filter(is_replied=True)
+
+    pending_contact_count = ContactMessage.objects.filter(is_replied=False).count()
+    contact_paginator = Paginator(contact_messages, 10)
+    contact_page = contact_paginator.get_page(request.GET.get("contact_page"))
 
     context = {
         "total_jobs": total_jobs,
         "total_applications": total_applications,
         "total_users": total_users,
         "users": users,
-        "contact_messages": contact_messages,
+        "contact_messages": contact_page,
+        "contact_page": contact_page,
+        "contact_query": contact_query,
+        "contact_status": contact_status,
+        "contact_message_count": contact_paginator.count,
+        "pending_contact_count": pending_contact_count,
     }
     return render(request, "admin/custom_dashboard.html", context)
 
 
 @staff_member_required
 def admin_manage_users(request):
-    """Trang quản lý danh sách tài khoản có phân trang, tìm kiếm và lọc theo quyền hạn"""
+    """Trang quản lý danh sách tài khoản theo từng phân loại (Admin, Nhà tuyển dụng, Ứng viên)"""
     query = request.GET.get("q", "").strip()
     role_filter = request.GET.get("role", "").strip()
+    status_filter = request.GET.get("status", "").strip()
 
-    role_choices = [
-        ("candidate", "Ứng viên"),
-        ("recruiter", "Nhà tuyển dụng"),
-        ("admin", "Admin"),
-    ]
+    # Nếu truy cập vào trang mà chưa chọn role_filter, mặc định chọn 'candidate' (hoặc nhóm bạn muốn)
+    if not role_filter:
+        role_filter = "candidate"
 
-    user_list = User.objects.all().order_by("-date_joined")
+    base_users = User.objects.all()
+    
+    # Tính toán số lượng cho từng loại (để hiển thị badge ở sidebar)
+    admin_count = base_users.filter(Q(is_staff=True) | Q(is_superuser=True)).count()
+    recruiter_count = base_users.filter(is_recruiter=True).count()
+    candidate_count = base_users.filter(is_candidate=True).count()
 
-    if query:
-        user_list = user_list.filter(
-            Q(username__icontains=query) | Q(email__icontains=query)
-        )
-
+    # Lọc danh sách user theo nhóm được chọn
+    user_list = base_users.select_related(
+        "profile", "company_profile"
+    ).order_by("-date_joined")
+    role_users = base_users
     if role_filter == "candidate":
         user_list = user_list.filter(is_candidate=True)
+        role_users = role_users.filter(is_candidate=True)
     elif role_filter == "recruiter":
         user_list = user_list.filter(is_recruiter=True)
+        role_users = role_users.filter(is_recruiter=True)
     elif role_filter == "admin":
         user_list = user_list.filter(Q(is_staff=True) | Q(is_superuser=True))
+        role_users = role_users.filter(Q(is_staff=True) | Q(is_superuser=True))
+    elif role_filter != "all":
+        role_filter = "all"
+
+    active_count = role_users.filter(is_active=True).count()
+    inactive_count = role_users.filter(is_active=False).count()
+
+    # Tìm kiếm theo tên hoặc email nếu có
+    if query:
+        user_list = user_list.filter(
+            Q(username__icontains=query)
+            | Q(email__icontains=query)
+            | Q(company_profile__company_name__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(profile__candidate_name__icontains=query)
+        )
+    if status_filter == "active":
+        user_list = user_list.filter(is_active=True)
+    elif status_filter == "inactive":
+        user_list = user_list.filter(is_active=False)
 
     paginator = Paginator(user_list, 10)
     page_number = request.GET.get("page")
     users = paginator.get_page(page_number)
+
+    # Tổng số tài khoản của riêng nhóm đang lọc
+    total_count = paginator.count
 
     return render(
         request,
@@ -72,17 +126,26 @@ def admin_manage_users(request):
             "users": users,
             "query": query,
             "role_filter": role_filter,
-            "role_choices": role_choices,
+            "status_filter": status_filter,
+            "admin_count": admin_count,
+            "recruiter_count": recruiter_count,
+            "candidate_count": candidate_count,
+            "total_count": total_count,
+            "active_count": active_count,
+            "inactive_count": inactive_count,
         },
     )
-
 
 @staff_member_required
 def admin_delete_user(request, pk):
     """Xóa tài khoản người dùng"""
     user_to_delete = get_object_or_404(User, pk=pk)
-    if user_to_delete != request.user:
+    if request.method == "POST" and user_to_delete != request.user:
+        username = user_to_delete.username
         user_to_delete.delete()
+        messages.success(request, f"Đã xóa tài khoản {username}.")
+    elif request.method == "POST":
+        messages.error(request, "Không thể xóa tài khoản admin đang đăng nhập.")
     return redirect("admin_manage_users")
 
 
@@ -104,15 +167,84 @@ def admin_recruiter_cv(request, pk):
 
 @staff_member_required
 def admin_approve_recruiter(request, pk):
+    """Admin duyệt tài khoản nhà tuyển dụng, lưu thời gian và gửi email thông báo"""
     if request.method == "POST":
         recruiter = get_object_or_404(User, pk=pk, is_recruiter=True)
-        if recruiter.recruiter_cv:
+        company_profile = getattr(recruiter, 'company_profile', None)
+        
+        if recruiter.recruiter_cv and company_profile:
             recruiter.is_active = True
             recruiter.save(update_fields=["is_active"])
-            messages.success(request, f"Đã duyệt tài khoản nhà tuyển dụng {recruiter.username}.")
+            
+            # Cập nhật trạng thái duyệt và thời gian duyệt
+            company_profile.is_approved = True
+            company_profile.approved_at = timezone.now()
+            company_profile.save(update_fields=["is_approved", "approved_at"])
+            
+            try:
+                sent_count = send_mail(
+                    subject="Thông báo: Tài khoản Nhà tuyển dụng đã được phê duyệt - CTJob",
+                    message=(
+                        f"Xin chào {recruiter.get_full_name() or recruiter.username},\n\n"
+                        f"Tài khoản Nhà tuyển dụng của công ty '{company_profile.company_name}' trên hệ thống CTJob đã được Admin PHÊ DUYỆT vào lúc {company_profile.approved_at.strftime('%d/%m/%Y %H:%M')}.\n"
+                        f"Bây giờ bạn có thể đăng nhập để đăng tin tuyển dụng và tìm kiếm ứng viên.\n\n"
+                        f"Trân trọng,\nĐội ngũ quản trị CTJob"
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[recruiter.email],
+                    fail_silently=False,
+                )
+                if sent_count != 1:
+                    raise RuntimeError("Django không xác nhận đã gửi email.")
+            except Exception as error:
+                messages.warning(
+                    request,
+                    f"Đã duyệt tài khoản nhưng không gửi được email đến {recruiter.email}: {error}",
+                )
+            else:
+                messages.success(
+                    request,
+                    f"Đã duyệt tài khoản và gửi email thông báo cho {recruiter.email}.",
+                )
         else:
-            messages.error(request, "Không thể duyệt tài khoản vì chưa có CV xác minh.")
+            messages.error(request, "Không thể duyệt tài khoản vì thiếu CV xác minh hoặc chưa có hồ sơ công ty.")
 
+    return redirect("admin_manage_users")
+
+
+@staff_member_required
+def admin_reject_recruiter(request, pk):
+    """Admin từ chối tài khoản nhà tuyển dụng và gửi email thông báo"""
+    if request.method == "POST":
+        recruiter = get_object_or_404(User, pk=pk, is_recruiter=True)
+        company_profile = getattr(recruiter, 'company_profile', None)
+        
+        if company_profile:
+            company_profile.is_approved = False
+            company_profile.approved_at = None
+            company_profile.save(update_fields=["is_approved", "approved_at"])
+            recruiter.is_active = False
+            recruiter.save(update_fields=["is_active"])
+            
+            # GỬI EMAIL THÔNG BÁO TỪ CHỐI
+            try:
+                send_mail(
+                    subject="Thông báo: Tài khoản Nhà tuyển dụng không được phê duyệt - CTJob",
+                    message=(
+                        f"Xin chào {recruiter.get_full_name() or recruiter.username},\n\n"
+                        f"Rất tiếc, tài khoản Nhà tuyển dụng của bạn trên hệ thống CTJob đã bị TỪ CHỐI sau khi kiểm tra hồ sơ xác minh.\n"
+                        f"Vui lòng liên hệ với bộ phận hỗ trợ nếu bạn cần giải đáp thêm.\n\n"
+                        f"Trân trọng,\nĐội ngũ quản trị CTJob"
+                    ),
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[recruiter.email],
+                    fail_silently=False,
+                )
+            except Exception as e:
+                print(f"Lỗi gửi email từ chối: {e}")
+
+            messages.warning(request, f"Đã từ chối và gửi email thông báo cho nhà tuyển dụng {recruiter.username}.")
+            
     return redirect("admin_manage_users")
 
 
@@ -121,8 +253,12 @@ def admin_manage_jobs(request):
     """Show recruiters, then one selected recruiter's chosen expiration group."""
     recruiter_id = request.GET.get("recruiter", "").strip()
     status_filter = request.GET.get("status", "").strip()
+    query = request.GET.get("q", "").strip()
     now = timezone.now()
-    recruiters = User.objects.filter(is_recruiter=True).annotate(
+    all_jobs_view = request.GET.get("all") == "1"
+    all_recruiters = User.objects.filter(is_recruiter=True).select_related(
+        "company_profile"
+    ).annotate(
         job_count=Count("job", distinct=True),
         active_job_count=Count(
             "job",
@@ -135,33 +271,41 @@ def admin_manage_jobs(request):
     ).order_by("username")
 
     if recruiter_id:
-        recruiter = get_object_or_404(recruiters, pk=recruiter_id)
-        recruiter_jobs = list(
-            Job.objects.filter(recruiter=recruiter)
-            .select_related("recruiter")
-            .order_by("-created_at")
+        recruiter = get_object_or_404(all_recruiters, pk=recruiter_id)
+        all_recruiter_jobs = Job.objects.filter(recruiter=recruiter).select_related(
+            "recruiter__company_profile"
         )
-        active_jobs = [job for job in recruiter_jobs if not job.is_expired_status]
-        expired_jobs = [job for job in recruiter_jobs if job.is_expired_status]
-        jobs = []
+        active_job_count = all_recruiter_jobs.filter(
+            Q(expires_at__isnull=True) | Q(expires_at__gte=now)
+        ).count()
+        expired_job_count = all_recruiter_jobs.filter(expires_at__lt=now).count()
+        jobs = all_recruiter_jobs.order_by("-created_at")
         if status_filter == "active":
-            jobs = active_jobs
+            jobs = jobs.filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
         elif status_filter == "expired":
-            jobs = expired_jobs
+            jobs = jobs.filter(expires_at__lt=now)
         else:
             status_filter = ""
+        if query:
+            jobs = jobs.filter(
+                Q(title__icontains=query) | Q(company_name__icontains=query)
+            )
 
+        job_page = Paginator(jobs, 10).get_page(request.GET.get("page"))
         return render(
             request,
             "admin/manage_jobs.html",
             {
                 "selected_recruiter": recruiter,
-                "recruiters": recruiters,
-                "jobs": jobs,
+                "recruiters": all_recruiters,
+                "jobs": job_page,
+                "job_page": job_page,
                 "status_filter": status_filter,
-                "active_job_count": len(active_jobs),
-                "expired_job_count": len(expired_jobs),
+                "query": query,
+                "active_job_count": active_job_count,
+                "expired_job_count": expired_job_count,
                 "selected_recruiter_job_count": recruiter.job_count,
+                "all_jobs_view": all_jobs_view,
             },
         )
 
@@ -172,42 +316,84 @@ def admin_manage_jobs(request):
         ),
         expired=Count("pk", filter=Q(expires_at__lt=now)),
     )
+    if all_jobs_view:
+        jobs = Job.objects.select_related(
+            "recruiter__company_profile"
+        ).order_by("-created_at")
+        if status_filter == "active":
+            jobs = jobs.filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
+        elif status_filter == "expired":
+            jobs = jobs.filter(expires_at__lt=now)
+        else:
+            status_filter = ""
+        if query:
+            jobs = jobs.filter(
+                Q(title__icontains=query)
+                | Q(company_name__icontains=query)
+                | Q(recruiter__company_profile__company_name__icontains=query)
+            )
+        job_page = Paginator(jobs, 10).get_page(request.GET.get("page"))
+        return render(
+            request,
+            "admin/manage_jobs.html",
+            {
+                "recruiters": all_recruiters,
+                "jobs": job_page,
+                "job_page": job_page,
+                "query": query,
+                "status_filter": status_filter,
+                "job_summary": job_summary,
+                "all_jobs_view": True,
+            },
+        )
+
+    recruiters = all_recruiters
+    if query:
+        recruiters = recruiters.filter(
+            Q(username__icontains=query) | Q(email__icontains=query)
+            | Q(company_profile__company_name__icontains=query)
+        )
+    recruiter_page = Paginator(recruiters.order_by("-date_joined"), 10).get_page(
+        request.GET.get("page")
+    )
     return render(
         request,
         "admin/manage_jobs.html",
         {
-            "recruiters": recruiters,
+            "recruiters": all_recruiters,
+            "recruiter_page": recruiter_page,
+            "query": query,
             "recruiter_count": recruiters.count(),
-            "recent_recruiters": recruiters.order_by("-date_joined")[:5],
             "job_summary": job_summary,
         },
     )
 
 
 @staff_member_required
-def admin_update_job_status(request, pk):
-    """Cập nhật trạng thái duyệt cho tin tuyển dụng"""
-    job = get_object_or_404(Job, pk=pk)
-
-    if request.method == "POST":
-        new_status = request.POST.get("status")
-        valid_statuses = {value for value, _ in Job._meta.get_field("status").choices}
-        if new_status in valid_statuses:
-            job.status = new_status
-            job.save(update_fields=["status"])
-            messages.success(request, "Cập nhật trạng thái tin tuyển dụng thành công!")
-        else:
-            messages.error(request, "Trạng thái không hợp lệ.")
-
-    return redirect("admin_manage_jobs")
-
-
-@staff_member_required
 def admin_delete_job(request, pk):
     """Xóa bài tuyển dụng bất kỳ"""
     job = get_object_or_404(Job, pk=pk)
-    job.delete()
-    return redirect("admin_manage_jobs")
+    recruiter_id = job.recruiter_id
+    if request.method == "POST":
+        title = job.title
+        job.delete()
+        messages.success(request, f"Đã xóa tin tuyển dụng “{title}”.")
+    return_all = request.POST.get("return_all") == "1"
+    return_recruiter = request.POST.get("return_recruiter", "").strip()
+    query_params = {}
+    if return_recruiter.isdigit():
+        query_params["recruiter"] = return_recruiter
+    elif not return_all:
+        query_params["recruiter"] = recruiter_id
+    if return_all:
+        query_params["all"] = "1"
+    return_status = request.POST.get("return_status", "")
+    return_query = request.POST.get("return_q", "").strip()
+    if return_status in {"active", "expired"}:
+        query_params["status"] = return_status
+    if return_query:
+        query_params["q"] = return_query
+    return redirect(f"{reverse('admin_manage_jobs')}?{urlencode(query_params)}")
 
 
 @staff_member_required
@@ -216,30 +402,62 @@ def admin_manage_applications(request):
     query = request.GET.get("q", "").strip()
     status_filter = request.GET.get("status", "").strip()
 
-    applications = Application.objects.all().order_by("-applied_at")
+    applications = Application.objects.select_related(
+        "job__recruiter__company_profile", "candidate__profile"
+    ).order_by("-applied_at")
 
     if query:
         applications = applications.filter(
-            Q(job__title__icontains=query) | Q(candidate__username__icontains=query)
+            Q(job__title__icontains=query)
+            | Q(job__company_name__icontains=query)
+            | Q(candidate__username__icontains=query)
+            | Q(candidate__email__icontains=query)
+            | Q(candidate__first_name__icontains=query)
+            | Q(candidate__last_name__icontains=query)
+            | Q(candidate__profile__candidate_name__icontains=query)
         )
 
     if status_filter:
         applications = applications.filter(status=status_filter)
 
-    job_ids = applications.values_list('job_id', flat=True).distinct()
-    jobs_with_applications = Job.objects.filter(id__in=job_ids).annotate(
-        total_apps=Count('applications')
-    ).order_by('-id')
-
     total_count = applications.count()
+    application_stats = Application.objects.aggregate(
+        pending=Count("pk", filter=Q(status="Pending")),
+        approved=Count("pk", filter=Q(status="Approved")),
+        interview_passed=Count("pk", filter=Q(status="InterviewPassed")),
+        trial=Count("pk", filter=Q(status="Trial")),
+        hired=Count("pk", filter=Q(status="Hired")),
+        rejected=Count("pk", filter=Q(status="Rejected")),
+    )
+    filtered_job_ids = applications.values_list("job_id", flat=True).distinct()
+    jobs_with_applications = (
+        Job.objects.filter(id__in=filtered_job_ids)
+        .select_related("recruiter__company_profile")
+        .annotate(
+            total_apps=Count(
+                "applications", filter=Q(applications__in=applications)
+            )
+        )
+        .order_by("-id")
+    )
+    job_page = Paginator(jobs_with_applications, 10).get_page(
+        request.GET.get("page")
+    )
+    page_job_ids = list(job_page.object_list.values_list("pk", flat=True))
+    applications = applications.filter(job_id__in=page_job_ids)
 
     return render(
         request,
         "admin/manage_applications.html",
         {
-            "jobs_with_applications": jobs_with_applications,
+            "jobs_with_applications": job_page,
+            "job_page": job_page,
             "applications": applications,
             "total_count": total_count,
+            "application_stats": application_stats,
+            "application_status_choices": Application._meta.get_field(
+                "status"
+            ).choices,
             "query": query,
             "status_filter": status_filter,
         },
@@ -263,18 +481,36 @@ def admin_manage_transactions(request):
     """Trang quản lý và duyệt các giao dịch mua gói cước của nhà tuyển dụng"""
     status_filter = request.GET.get("status", "").strip()
     selected_month = request.GET.get("month", "").strip() # Lấy tháng người dùng chọn (định dạng YYYY-MM)
+    query = request.GET.get("q", "").strip()
     
-    transactions = PackageTransaction.objects.all().order_by("-created_at")
+    all_transactions = PackageTransaction.objects.all()
+    transactions = all_transactions.select_related(
+        "recruiter__company_profile", "package"
+    ).order_by("-created_at")
 
     if status_filter:
         transactions = transactions.filter(status=status_filter)
+    if query:
+        transactions = transactions.filter(
+            Q(recruiter__username__icontains=query)
+            | Q(recruiter__email__icontains=query)
+            | Q(package__name__icontains=query)
+            | Q(payment_code__icontains=query)
+            | Q(sepay_transaction_id__icontains=query)
+        )
 
-    # 1. Tính tổng doanh thu toàn bộ từ các giao dịch đã duyệt (approved)
-    total_approved_amount = transactions.filter(status="approved").aggregate(total=Sum('amount'))['total'] or 0
+    transaction_stats = all_transactions.aggregate(
+        total=Count("pk"),
+        pending=Count("pk", filter=Q(status="pending")),
+        approved=Count("pk", filter=Q(status="approved")),
+        rejected=Count("pk", filter=Q(status="rejected")),
+        revenue=Sum("amount", filter=Q(status="approved")),
+    )
+    total_approved_amount = transaction_stats["revenue"] or 0
 
     # 2. Lấy danh sách tất cả các tháng có giao dịch để hiển thị trong thẻ chọn (dropdown)
     available_months = (
-        PackageTransaction.objects.filter(status="approved")
+        all_transactions.filter(status="approved")
         .annotate(month=TruncMonth('created_at'))
         .values_list('month', flat=True)
         .distinct()
@@ -287,7 +523,7 @@ def admin_manage_transactions(request):
         # selected_month có dạng "YYYY-MM"
         year, month = selected_month.split('-')
         month_revenue_data = (
-            transactions.filter(status="approved", created_at__year=year, created_at__month=month)
+            all_transactions.filter(status="approved", created_at__year=year, created_at__month=month)
             .aggregate(total=Sum('amount'))['total']
         )
         selected_month_revenue = month_revenue_data or 0
@@ -308,57 +544,16 @@ def admin_manage_transactions(request):
         {
             "page_obj": page_obj,
             "status_filter": status_filter,
+            "query": query,
             "status_choices": status_choices,
             "total_approved_amount": total_approved_amount,
             "available_months": available_months,
             "selected_month": selected_month,
             "selected_month_revenue": selected_month_revenue,
+            "transaction_stats": transaction_stats,
         },
     )
 
-
-@staff_member_required
-def admin_approve_transaction(request, pk):
-    transaction = get_object_or_404(PackageTransaction, pk=pk)
-
-    if request.method == "POST":
-        if transaction.status != "approved":
-            transaction.status = "approved"
-            transaction.save()
-
-            recruiter_profile, _ = RecruiterAccount.objects.get_or_create(
-                user=transaction.recruiter
-            )
-            recruiter_profile.active_package = transaction.package
-
-            limit = getattr(transaction.package, "post_limit", 5)
-            recruiter_profile.posts_remaining = (
-                getattr(recruiter_profile, "posts_remaining", 0) + limit
-            )
-
-            now = timezone.now()
-            if (
-                recruiter_profile.package_expires_at
-                and recruiter_profile.package_expires_at > now
-            ):
-                recruiter_profile.package_expires_at += timedelta(
-                    days=transaction.package.duration_days
-                )
-            else:
-                recruiter_profile.package_expires_at = now + timedelta(
-                    days=transaction.package.duration_days
-                )
-
-            recruiter_profile.save()
-
-            messages.success(
-                request,
-                f"Đã duyệt giao dịch #{transaction.id} và kích hoạt gói cước thành công!",
-            )
-        else:
-            messages.warning(request, "Giao dịch này đã được duyệt trước đó.")
-
-    return redirect("admin_manage_transactions")
 
 @staff_member_required
 def admin_reject_transaction(request, pk):
@@ -366,10 +561,15 @@ def admin_reject_transaction(request, pk):
     transaction = get_object_or_404(PackageTransaction, pk=pk)
 
     if request.method == "POST":
-        if transaction.status != "rejected":
+        if transaction.status == "pending":
             transaction.status = "rejected"
             transaction.save()
             messages.success(request, f"Đã từ chối giao dịch #{transaction.id}.")
+        elif transaction.status == "approved":
+            messages.warning(
+                request,
+                "Giao dịch đã được SePay xác nhận và kích hoạt, không thể từ chối.",
+            )
         else:
             messages.warning(request, "Giao dịch này đã bị từ chối trước đó.")
 
