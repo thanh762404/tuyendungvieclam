@@ -1,6 +1,64 @@
-{% extends 'base.html' %}
-{% block content %}
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hồ sơ nhà tuyển dụng - CTJob</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
 <div class="container mt-4 mb-5" style="max-width: 700px;">
+    <!-- Thống kê kinh phí mua gói -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <h4 class="mb-1">Thống kê kinh phí mua gói</h4>
+                    <p class="text-muted mb-0">Chỉ tính các giao dịch đã thanh toán và kích hoạt.</p>
+                </div>
+                <div class="text-end">
+                    <div class="text-muted small">Tổng đã chi</div>
+                    <div class="fs-3 fw-bold text-success money">
+                        {{ package_spending.total_amount|default:0|floatformat:0 }} VNĐ
+                    </div>
+                    <div class="small text-muted">
+                        {{ package_spending.transaction_count|default:0 }} giao dịch
+                    </div>
+                </div>
+            </div>
+            {% if package_spending_by_month %}
+                <hr>
+                <h6 class="fw-semibold mb-2">Chi phí theo tháng</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tháng</th>
+                                <th class="text-center">Giao dịch</th>
+                                <th class="text-end">Tổng tiền</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for month in package_spending_by_month %}
+                                <tr>
+                                    <td>{{ month.payment_month|date:"m/Y" }}</td>
+                                    <td class="text-center">{{ month.transaction_count }}</td>
+                                    <td class="text-end fw-semibold">
+                                        {{ month.total_amount|floatformat:0 }} VNĐ
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <hr>
+                <p class="text-muted small mb-0">Chưa có giao dịch mua gói nào được xác nhận.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Quản lý Thông tin Công ty & Logo -->
     <div class="card shadow-sm border-0">
         <div class="card-body p-4">
             <h3 class="mb-4 text-primary font-weight-bold">Quản lý Thông tin Công ty & Logo</h3>
@@ -15,23 +73,95 @@
                 {% csrf_token %}
                 
                 <!-- Hiển thị logo hiện tại nếu có -->
-                <div class="form-group mb-3 text-center">
+                <div class="form-group mb-4 text-center">
                     {% if profile.company_logo %}
                         <div class="mb-2">
                             <img src="{{ profile.company_logo.url }}" alt="Current Logo" class="img-thumbnail" style="width: 120px; height: 120px; object-fit: contain;">
                         </div>
-                        <small class="text-muted">Logo hiện tại của công ty</small>
+                        <small class="text-muted d-block">Logo hiện tại của công ty</small>
                     {% else %}
                         <div class="alert alert-secondary py-2">Chưa có logo nào được tải lên.</div>
                     {% endif %}
                 </div>
 
-                {{ form.as_p }}
+                <!-- Tên công ty -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Tên công ty:</label>
+                    {{ form.company_name }}
+                    {% if form.company_name.errors %}
+                        <div class="text-danger small">{{ form.company_name.errors }}</div>
+                    {% endif %}
+                </div>
 
-                <button type="submit" class="btn btn-primary btn-block mt-3 px-4 py-2">Lưu thay đổi</button>
-                <a href="{% url 'recruiter_job_list' %}" class="btn btn-secondary mt-3 ml-2 py-2">Quay lại quản lý tin</a>
+                <!-- Số điện thoại -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Số điện thoại liên hệ:</label>
+                    {{ form.phone }}
+                    {% if form.phone.errors %}
+                        <div class="text-danger small">{{ form.phone.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Địa chỉ công ty (Đã được tích hợp đầy đủ hiển thị) -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Địa chỉ công ty:</label>
+                    <input
+                        type="text"
+                        name="address"
+                        id="id_address"
+                        class="form-control"
+                        placeholder="Nhập địa chỉ công ty..."
+                        maxlength="255"
+                        value="{{ form.address.value|default_if_none:'' }}"
+                    >
+                    {% if form.address.errors %}
+                        <div class="text-danger small">{{ form.address.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Website -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Website:</label>
+                    {{ form.website }}
+                    {% if form.website.errors %}
+                        <div class="text-danger small">{{ form.website.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Mô tả công ty -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Mô tả công ty:</label>
+                    {{ form.description }}
+                    {% if form.description.errors %}
+                        <div class="text-danger small">{{ form.description.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Logo công ty -->
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Logo công ty:</label>
+                    {{ form.company_logo }}
+                    {% if form.company_logo.errors %}
+                        <div class="text-danger small">{{ form.company_logo.errors }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="mt-4">
+                    <button type="submit" class="btn btn-primary px-4 py-2">Lưu thay đổi</button>
+                    <a href="{% url 'recruiter_job_list' %}" class="btn btn-secondary ms-2 py-2">Quay lại quản lý tin</a>
+                </div>
             </form>
         </div>
     </div>
 </div>
-{% endblock %}
+
+<script>
+    document.querySelectorAll(".money").forEach(element => {
+        const amount = Number(element.textContent.replace(/[^\d-]/g, ""));
+        if (Number.isFinite(amount)) {
+            element.textContent = `${amount.toLocaleString("vi-VN")} VNĐ`;
+        }
+    });
+</script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import json
 import os
 import tempfile
+from importlib import import_module
 from io import StringIO
 from datetime import timedelta
 from unittest.mock import patch
@@ -8,7 +9,9 @@ from unittest.mock import patch
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.db import connection
 from django.http import Http404, HttpResponse
+from django.template.loader import render_to_string
 from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
@@ -21,8 +24,10 @@ from jobs.models import (
     JobChatMessage,
     Notification,
     PackageTransaction,
+    QualifiedCandidate,
     RecruiterAccount,
     SubscriptionPackage,
+    SystemFeature,
 )
 from jobs.services import send_interview_reminder_email
 from jobs.views_candidate import (
@@ -40,10 +45,28 @@ from jobs.views_admin import admin_approve_recruiter, admin_manage_jobs
 from jobs.views_recruiter import (
     all_approved_candidates_view,
     buy_package_view,
+    job_clone,
+    job_create,
     job_achieved_candidates_view,
     mark_job_chat_read,
+    recruiter_profile_view,
     recruiter_job_list,
 )
+
+
+class SystemFeatureCatalogTests(TestCase):
+    def test_feature_catalog_is_seeded_for_all_roles(self):
+        self.assertEqual(SystemFeature.objects.count(), 25)
+        self.assertSetEqual(
+            set(SystemFeature.objects.values_list("actor", flat=True).distinct()),
+            {"Ứng viên", "Nhà tuyển dụng", "Admin"},
+        )
+
+    def test_static_news_feature_is_marked_as_having_no_database_table(self):
+        feature = SystemFeature.objects.get(code="candidate-news")
+
+        self.assertEqual(feature.storage_status, "static")
+        self.assertEqual(feature.related_tables, "")
 
 
 class JobChatMessageDisplayNameTests(TestCase):
@@ -83,10 +106,16 @@ class JobChatMessageDisplayNameTests(TestCase):
 class CandidateJobRecommendationTests(TestCase):
     def setUp(self):
         recruiter = User.objects.create_user(
-            username='recruiter', password='test-password', is_recruiter=True
+            username='recruiter',
+            email='candidate-recommendation-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
         )
         self.candidate = User.objects.create_user(
-            username='candidate', password='test-password', is_candidate=True
+            username='candidate',
+            email='candidate-recommendation-candidate@example.com',
+            password='test-password',
+            is_candidate=True,
         )
         self.profile = Profile.objects.create(
             user=self.candidate,
@@ -157,6 +186,22 @@ class CandidateJobRecommendationTests(TestCase):
             {mysql_python_job, mysql_django_job},
         )
 
+    def test_expired_jobs_are_returned_separately_from_active_jobs(self):
+        expired_job = self.create_job(
+            self.matching_job.recruiter,
+            'Expired Python Developer',
+            'Công nghệ thông tin',
+            'Python',
+        )
+        expired_job.expires_at = timezone.now() - timedelta(days=1)
+        expired_job.save(update_fields=['expires_at'])
+
+        _, context = self.get_home_context()
+
+        self.assertIn(expired_job, context['expired_jobs'])
+        self.assertNotIn(expired_job, context['jobs'])
+        self.assertEqual(context['total_expired_jobs'], 1)
+
 
 class JobMajorSkillValidationTests(TestCase):
     def job_form_data(self, major, skills):
@@ -221,15 +266,105 @@ class JobHiringCapacityTests(TestCase):
             status=status,
         )
 
-    def update_status(self, application, status, interview_date='', interview_time=''):
+    def test_job_table_keeps_company_name_next_to_recruiter_foreign_key(self):
+        CompanyProfile.objects.create(
+            user=self.recruiter,
+            company_name='Công ty Minh An',
+        )
+
+        self.job.refresh_from_db()
+
+        self.assertEqual(self.job.company_name, 'Công ty Minh An')
+        self.assertEqual(self.job.recruiter_name, 'Công ty Minh An')
+
+    def test_recruiter_profile_renders_and_saves_company_address(self):
+        company_profile = CompanyProfile.objects.create(
+            user=self.recruiter,
+            company_name='Công ty Minh An',
+            address='Địa chỉ cũ',
+        )
+        self.client.force_login(self.recruiter)
+
+        response = self.client.get('/recruiter/profile/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="id_address"')
+        self.assertContains(response, 'name="address"')
+        self.assertContains(response, 'value="Địa chỉ cũ"')
+
+        response = self.client.post(
+            '/recruiter/profile/',
+            {
+                'company_name': 'Công ty Minh An',
+                'phone': '',
+                'address': 'Địa chỉ mới',
+                'website': '',
+                'description': '',
+            },
+        )
+
+        company_profile.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(company_profile.address, 'Địa chỉ mới')
+
+    def update_status(
+        self,
+        application,
+        status,
+        interview_date='',
+        interview_time='',
+        interview_period='',
+    ):
+        post_data = {
+            'status': status,
+            'interview_date': interview_date,
+            'interview_time': interview_time,
+            'interview_note': '',
+        }
+        if status == 'Approved' and interview_time:
+            hour, minute = interview_time.split(':', 1)
+            hour_24 = int(hour)
+            post_data.update(
+                {
+                    'interview_hour': f'{hour_24 % 12 or 12:02d}',
+                    'interview_minute': minute,
+                    'interview_period': 'PM' if hour_24 >= 12 else 'AM',
+                }
+            )
+        if interview_period:
+            post_data['interview_period'] = interview_period
         request = self.request_factory.post(
             f'/application/{application.pk}/update/',
-            {
-                'status': status,
-                'interview_date': interview_date,
-                'interview_time': interview_time,
-                'interview_note': '',
-            },
+            post_data,
+        )
+        request.user = self.recruiter
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        with patch('jobs.views_candidate.redirect', return_value=HttpResponse()), patch(
+            'jobs.views_candidate.render', return_value=HttpResponse()
+        ):
+            return update_application_status(request, application.pk)
+
+    def update_schedule(self, application, interview_date, interview_time, period):
+        post_data = {
+            'action': 'update_schedule',
+            'status': application.status,
+            'interview_date': interview_date,
+        }
+        if application.status == 'Approved':
+            hour, minute = interview_time.split(':', 1)
+            post_data.update(
+                {
+                    'interview_hour': hour,
+                    'interview_minute': minute,
+                    'interview_period': period,
+                }
+            )
+        else:
+            post_data['interview_time'] = interview_time
+        request = self.request_factory.post(
+            f'/application/{application.pk}/update/',
+            post_data,
         )
         request.user = self.recruiter
         request.session = {}
@@ -318,12 +453,13 @@ class JobHiringCapacityTests(TestCase):
         application = self.create_application('trial-notice-candidate', status='Approved')
         application.candidate.email = 'candidate@example.com'
         application.candidate.save(update_fields=['email'])
+        interview_date = (timezone.now().date() + timedelta(days=2)).isoformat()
 
         with patch('jobs.services.send_mail', return_value=1) as send_mail:
             response = self.update_status(
                 application,
                 'Trial',
-                interview_date='2026-10-05',
+                interview_date=interview_date,
                 interview_time='09:00',
             )
 
@@ -335,11 +471,11 @@ class JobHiringCapacityTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(application.status, 'Trial')
         self.assertIn('Lịch bắt đầu thử việc/đi làm', notification.message)
-        self.assertIn('2026-10-05', notification.message)
+        self.assertIn(interview_date, notification.message)
         self.assertEqual(send_mail.call_args.args[3], ['candidate@example.com'])
         self.assertIn('Đang thử việc', send_mail.call_args.args[1])
         self.assertIn('Lịch bắt đầu thử việc/đi làm', send_mail.call_args.args[1])
-        self.assertIn('2026-10-05', send_mail.call_args.args[1])
+        self.assertIn(interview_date, send_mail.call_args.args[1])
 
     def test_updating_schedule_without_changing_status_sends_email_and_notification(self):
         application = self.create_application('schedule-update-candidate', status='Approved')
@@ -347,12 +483,13 @@ class JobHiringCapacityTests(TestCase):
         application.candidate.save(update_fields=['email'])
         application.interview_details = 'Ngày: 2026-10-05\nGiờ: 09:00'
         application.save(update_fields=['interview_details'])
+        interview_date = (timezone.now().date() + timedelta(days=3)).isoformat()
 
         with patch('jobs.services.send_mail', return_value=1) as send_mail:
             response = self.update_status(
                 application,
                 'Approved',
-                interview_date='2026-10-06',
+                interview_date=interview_date,
                 interview_time='10:30',
             )
 
@@ -363,10 +500,151 @@ class JobHiringCapacityTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(application.status, 'Approved')
-        self.assertIn('2026-10-06', application.interview_details)
+        self.assertIn(interview_date, application.interview_details)
         self.assertIn('đã được nhà tuyển dụng cập nhật', notification.message)
         send_mail.assert_called_once()
-        self.assertIn('2026-10-06', send_mail.call_args.args[1])
+        self.assertIn(interview_date, send_mail.call_args.args[1])
+
+    def test_schedule_only_update_uses_24_hour_values_and_preserves_status_and_notes(self):
+        application = self.create_application('schedule-only-candidate', status='Hired')
+        application.interview_details = (
+            'Ngày: 2026-10-05\n'
+            'Giờ: 09:00\n'
+            'Địa điểm: Văn phòng công ty\n'
+            'Ghi chú: Mang theo hồ sơ'
+        )
+        application.save(update_fields=['interview_details'])
+        interview_date = (timezone.now().date() + timedelta(days=3)).isoformat()
+
+        with patch('jobs.services.send_mail', return_value=1) as send_mail:
+            response = self.update_schedule(
+                application,
+                interview_date=interview_date,
+                interview_time='14:30',
+                period='',
+            )
+
+        application.refresh_from_db()
+        notification = JobChatMessage.objects.get(
+            receiver=application.candidate,
+            is_application_update=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(application.status, 'Hired')
+        self.assertIn(f'Ngày: {interview_date}', application.interview_details)
+        self.assertIn('Giờ: 14:30', application.interview_details)
+        self.assertIn('Địa điểm: Văn phòng công ty', application.interview_details)
+        self.assertIn('Ghi chú: Mang theo hồ sơ', application.interview_details)
+        self.assertIn('14:30', notification.message)
+        send_mail.assert_called_once()
+
+    def test_approved_interview_picker_converts_midnight_and_noon(self):
+        interview_date = (timezone.now().date() + timedelta(days=3)).isoformat()
+        for username, hour, period, expected_time in (
+            ('midnight-candidate', '12:15', 'AM', '00:15'),
+            ('noon-candidate', '12:15', 'PM', '12:15'),
+        ):
+            with self.subTest(period=period):
+                application = self.create_application(username, status='Approved')
+                response = self.update_schedule(
+                    application,
+                    interview_date=interview_date,
+                    interview_time=hour,
+                    period=period,
+                )
+
+                application.refresh_from_db()
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(application.status, 'Approved')
+                self.assertIn(
+                    f'Giờ: {expected_time}',
+                    application.interview_details,
+                )
+
+    def test_database_views_expose_names_and_active_expired_job_counts(self):
+        candidate_application = self.create_application(
+            'readable-view-candidate',
+            status='Trial',
+        )
+        CompanyProfile.objects.create(
+            user=self.recruiter,
+            company_name='Công ty Minh An',
+        )
+        expired_job = Job.objects.create(
+            title='Công việc đã hết hạn',
+            location='Đà Nẵng',
+            salary='12 triệu',
+            job_type='Full-time',
+            description='Mô tả',
+            requirements='Yêu cầu',
+            recruiter=self.recruiter,
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+
+        migration = import_module(
+            'jobs.migrations.0033_qualifiedcandidate_readable_view'
+        )
+        schema_editor = connection.schema_editor()
+        migration.create_readable_view(None, schema_editor)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                'SELECT candidate_name, recruiter_name, company_name, job_title '
+                'FROM jobs_qualifiedcandidate'
+            )
+            table_names = cursor.fetchone()
+            cursor.execute(
+                'SELECT candidate_name, recruiter_name, company_name, job_title, status '
+                'FROM jobs_qualifiedcandidate_readable'
+            )
+            readable_row = cursor.fetchone()
+            readable_columns = [column[0] for column in cursor.description]
+            cursor.execute(
+                'SELECT job_title, expiration_status '
+                'FROM jobs_job_expiration_status WHERE job_title = %s',
+                [expired_job.title],
+            )
+            expired_row = cursor.fetchone()
+            cursor.execute('SELECT total_jobs, active_jobs, expired_jobs FROM jobs_job_expiration_counts')
+            job_counts = cursor.fetchone()
+
+        self.assertEqual(
+            readable_row,
+            (
+                candidate_application.candidate.display_name,
+                'Công ty Minh An',
+                'Công ty Minh An',
+                self.job.title,
+                'Đang thử việc',
+            ),
+        )
+        self.assertEqual(
+            table_names,
+            (
+                candidate_application.candidate.display_name,
+                'Công ty Minh An',
+                'Công ty Minh An',
+                self.job.title,
+            ),
+        )
+        self.assertFalse(any(column.endswith('_id') for column in readable_columns))
+        self.assertEqual(expired_row, (expired_job.title, 'Hết hạn'))
+        self.assertEqual(job_counts, (2, 1, 1))
+
+    def test_qualified_candidates_link_to_the_application_cv(self):
+        application = self.create_application('qualified-cv-candidate')
+        application.cv_file = 'applications_cvs/qualified-cv-candidate.pdf'
+
+        rendered = render_to_string(
+            'jobs/all_approved_candidates.html',
+            {'approved_list': [application]},
+        )
+
+        self.assertIn(
+            '/media/applications_cvs/qualified-cv-candidate.pdf',
+            rendered,
+        )
+        self.assertIn('Xem CV', rendered)
 
     def test_applications_are_not_limited_by_hiring_capacity(self):
         candidate = User.objects.create_user(
@@ -474,6 +752,7 @@ class JobHiringCapacityTests(TestCase):
         self.create_application('passed-candidate', status='InterviewPassed')
         self.create_application('trial-candidate', status='Trial')
         self.create_application('pending-candidate', status='Pending')
+        self.assertEqual(QualifiedCandidate.objects.count(), 2)
         request = self.request_factory.get(f'/recruiter/jobs/{self.job.pk}/achieved-candidates/')
         request.user = self.recruiter
 
@@ -486,6 +765,81 @@ class JobHiringCapacityTests(TestCase):
         self.assertEqual(
             {application.candidate.username for application in context['approved_list']},
             {'passed-candidate', 'trial-candidate'},
+        )
+
+    def test_qualified_candidate_rows_are_owned_by_their_recruiter_and_job(self):
+        application = self.create_application(
+            'owned-qualified-candidate',
+            status='InterviewPassed',
+        )
+        other_recruiter = User.objects.create_user(
+            username='other-recruiter',
+            email='other-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
+        )
+        other_job = Job.objects.create(
+            title='Nhân viên kế toán',
+            location='Đà Nẵng',
+            salary='12 triệu',
+            job_type='Full-time',
+            description='Mô tả công việc',
+            requirements='Yêu cầu ứng viên',
+            recruiter=other_recruiter,
+        )
+        other_candidate = User.objects.create_user(
+            username='other-qualified-candidate',
+            email='other-qualified-candidate@example.com',
+            password='test-password',
+            is_candidate=True,
+        )
+        other_application = Application.objects.create(
+            job=other_job,
+            candidate=other_candidate,
+            cv_file='applications_cvs/other-qualified-candidate.pdf',
+            status='Trial',
+        )
+
+        qualified_rows = QualifiedCandidate.objects.order_by("recruiter_id")
+        self.assertEqual(qualified_rows.count(), 2)
+        self.assertEqual(
+            (
+                qualified_rows[0].candidate_id,
+                qualified_rows[0].job_id,
+                qualified_rows[0].recruiter_id,
+                qualified_rows[0].application_id,
+            ),
+            (
+                application.candidate_id,
+                self.job.pk,
+                self.recruiter.pk,
+                application.pk,
+            ),
+        )
+        self.assertEqual(
+            (
+                qualified_rows[1].candidate_id,
+                qualified_rows[1].job_id,
+                qualified_rows[1].recruiter_id,
+                qualified_rows[1].application_id,
+            ),
+            (
+                other_application.candidate_id,
+                other_job.pk,
+                other_recruiter.pk,
+                other_application.pk,
+            ),
+        )
+
+        request = self.request_factory.get('/recruiter/all-approved-candidates/')
+        request.user = self.recruiter
+        with patch('jobs.views_recruiter.render', return_value=HttpResponse()) as render:
+            response = all_approved_candidates_view(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row.candidate.username for row in render.call_args.args[2]['approved_list']],
+            [application.candidate.username],
         )
 
     def test_job_achieved_candidates_rejects_another_recruiters_job(self):
@@ -951,6 +1305,36 @@ class JobChatAssistantTests(TestCase):
         ):
             return update_application_status(request, application.pk)
 
+    def update_schedule(self, application, interview_date, interview_time, period):
+        post_data = {
+            'action': 'update_schedule',
+            'status': application.status,
+            'interview_date': interview_date,
+        }
+        if application.status == 'Approved':
+            hour, minute = interview_time.split(':', 1)
+            hour_24 = int(hour)
+            post_data.update(
+                {
+                    'interview_hour': f'{hour_24 % 12 or 12:02d}',
+                    'interview_minute': minute,
+                    'interview_period': period or ('PM' if hour_24 >= 12 else 'AM'),
+                }
+            )
+        else:
+            post_data['interview_time'] = interview_time
+        request = self.request_factory.post(
+            f'/application/{application.pk}/update/',
+            post_data,
+        )
+        request.user = self.recruiter
+        request.session = {}
+        request._messages = FallbackStorage(request)
+        with patch('jobs.views_candidate.redirect', return_value=HttpResponse()), patch(
+            'jobs.views_candidate.render', return_value=HttpResponse()
+        ):
+            return update_application_status(request, application.pk)
+
     def test_candidate_unread_badge_clears_after_opening_chat(self):
         message = JobChatMessage.objects.create(
             job=self.job,
@@ -987,10 +1371,11 @@ class JobChatAssistantTests(TestCase):
         self.assertEqual(application.status, 'Pending')
         self.assertFalse(JobChatMessage.objects.filter(receiver=application.candidate).exists())
 
+        interview_date = (timezone.now().date() + timedelta(days=2)).isoformat()
         response = self.update_status(
             application,
             'Approved',
-            interview_date='2026-10-05',
+            interview_date=interview_date,
             interview_time='14:30',
         )
 
@@ -998,18 +1383,19 @@ class JobChatAssistantTests(TestCase):
         application.refresh_from_db()
         notification = JobChatMessage.objects.get(receiver=application.candidate)
         self.assertEqual(application.status, 'Approved')
-        self.assertIn('Ngày: 2026-10-05', application.interview_details)
+        self.assertIn(f'Ngày: {interview_date}', application.interview_details)
         self.assertIn('Giờ: 14:30', application.interview_details)
         self.assertIn('Đã duyệt / Phỏng vấn', notification.message)
-        self.assertIn('2026-10-05', notification.message)
+        self.assertIn(interview_date, notification.message)
 
     def test_interview_location_comes_from_recruiter_profile_and_note_is_separate(self):
         application = self.create_application('location-candidate', status='Pending')
+        interview_date = (timezone.now().date() + timedelta(days=2)).isoformat()
 
         response = self.update_status(
             application,
             'Approved',
-            interview_date='2026-10-05',
+            interview_date=interview_date,
             interview_time='14:30',
             interview_note='Mang theo CV\nĐịa điểm: liên hệ nhân sự nếu cần đổi lịch.',
         )
@@ -1034,6 +1420,55 @@ class JobChatAssistantTests(TestCase):
             'Mang theo CV\nĐịa điểm: liên hệ nhân sự nếu cần đổi lịch.',
         )
 
+    def test_updating_schedule_uses_the_recruiters_latest_profile_address(self):
+        application = self.create_application('updated-address-candidate')
+        company_profile = self.recruiter.company_profile
+        company_profile.address = 'Địa chỉ mới, Đà Nẵng'
+        company_profile.save(update_fields=['address'])
+        interview_date = (timezone.now().date() + timedelta(days=2)).isoformat()
+
+        response = self.update_schedule(
+            application,
+            interview_date=interview_date,
+            interview_time='14:30',
+            period='PM',
+        )
+
+        application.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Địa điểm: Địa chỉ mới, Đà Nẵng', application.interview_details)
+        self.assertNotIn('Địa điểm: 123 Đường Nguyễn Huệ', application.interview_details)
+
+    def test_past_interview_datetime_is_not_saved(self):
+        application = self.create_application('past-interview-candidate', status='Pending')
+
+        response = self.update_status(
+            application,
+            'Approved',
+            interview_date=(timezone.now().date() - timedelta(days=1)).isoformat(),
+            interview_time='09:00',
+        )
+
+        application.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(application.status, 'Pending')
+        self.assertFalse(application.interview_details)
+
+    def test_past_time_today_is_not_saved(self):
+        application = self.create_application('past-time-candidate', status='Hired')
+        past_time = (timezone.now() - timedelta(minutes=2)).strftime('%H:%M')
+
+        response = self.update_schedule(
+            application,
+            interview_date=timezone.now().date().isoformat(),
+            interview_time=past_time,
+            period='',
+        )
+
+        application.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(application.interview_details)
+
     def test_rejection_updates_status_and_notifies_candidate(self):
         application = self.create_application('rejected-candidate', status='Pending')
 
@@ -1043,8 +1478,28 @@ class JobChatAssistantTests(TestCase):
         notification = JobChatMessage.objects.get(receiver=application.candidate)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(application.status, 'Rejected')
+        self.assertFalse(
+            QualifiedCandidate.objects.filter(application=application).exists()
+        )
         self.assertIn('Từ chối', notification.message)
         self.assertTrue(notification.is_application_update)
+
+    def test_application_entering_and_leaving_qualified_status_syncs_separate_table(self):
+        application = self.create_application('qualified-candidate', status='Pending')
+        self.assertFalse(
+            QualifiedCandidate.objects.filter(application=application).exists()
+        )
+
+        application.status = 'InterviewPassed'
+        application.save()
+        qualified_candidate = QualifiedCandidate.objects.get(application=application)
+        self.assertEqual(qualified_candidate.status, 'Đạt phỏng vấn')
+
+        application.status = 'Rejected'
+        application.save()
+        self.assertFalse(
+            QualifiedCandidate.objects.filter(application=application).exists()
+        )
 
     def test_candidate_notifications_are_shown_and_marked_read(self):
         application = self.create_application('notified-candidate', status='Pending')
@@ -1179,10 +1634,158 @@ class SePayWebhookTests(TestCase):
         self.assertIsNotNone(self.purchase.verified_at)
         self.assertEqual(recruiter_account.active_package, self.package)
         self.assertEqual(recruiter_account.posts_remaining, self.package.post_limit)
+        self.assertEqual(
+            recruiter_account.total_posts_purchased,
+            self.package.post_limit,
+        )
+        self.assertIsNotNone(recruiter_account.package_started_at)
+        self.assertLess(
+            recruiter_account.package_started_at,
+            recruiter_account.package_expires_at,
+        )
 
         self.send_webhook(self.event())
         recruiter_account.refresh_from_db()
         self.assertEqual(recruiter_account.posts_remaining, self.package.post_limit)
+        self.assertEqual(
+            recruiter_account.total_posts_purchased,
+            self.package.post_limit,
+        )
+
+    @override_settings(
+        SEPAY_WEBHOOK_SECRET='webhook-secret',
+        SEPAY_BANK_ACCOUNT='0368031812',
+    )
+    def test_purchase_while_package_active_adds_credits_once_and_extends_expiration(self):
+        self.send_webhook(self.event())
+        recruiter_account = self.recruiter.recruiter_account
+        first_expiration = recruiter_account.package_expires_at
+        second_purchase = PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=self.package.price,
+        )
+        self.package.post_limit = 12
+        self.package.save(update_fields=['post_limit'])
+
+        response = self.send_webhook(
+            self.event(
+                id=918274,
+                content=f'Thanh toan {second_purchase.payment_code}',
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        recruiter_account.refresh_from_db()
+        self.assertEqual(recruiter_account.posts_remaining, 20)
+        self.assertEqual(
+            recruiter_account.total_posts_purchased,
+            20,
+        )
+        second_purchase.refresh_from_db()
+        self.assertEqual(second_purchase.package_posts_count, 10)
+        self.assertEqual(
+            recruiter_account.package_expires_at,
+            first_expiration + timedelta(days=self.package.duration_days),
+        )
+
+    def test_admin_transaction_list_shows_transaction_and_activation_times(self):
+        purchase = PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=self.package.price,
+            status='approved',
+        )
+        purchase.verified_at = timezone.now() - timedelta(hours=1)
+        purchase.save(update_fields=['verified_at'])
+        PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=self.package.price,
+            status='approved',
+        )
+        admin = User.objects.create_user(
+            username='transaction-admin',
+            email='transaction-admin@example.com',
+            password='test-password',
+            is_staff=True,
+        )
+        self.client.force_login(admin)
+
+        response = self.client.get('/custom-admin/transactions/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Tạo:')
+        self.assertContains(response, 'Kích hoạt:')
+        self.assertContains(response, purchase.verified_at.strftime('%d/%m/%Y %H:%M'))
+        self.assertNotContains(response, 'Lượt còn / thời hạn gói')
+        self.assertNotContains(response, 'Trong CSDL còn:')
+        self.assertNotContains(response, 'Đã mua:')
+
+    @override_settings(SEPAY_BANK_ACCOUNT='0368031812')
+    def test_recruiter_package_pages_show_total_and_monthly_spending(self):
+        first_paid = PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=70000,
+            status='approved',
+        )
+        second_paid = PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=30000,
+            status='approved',
+        )
+        PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=self.package,
+            amount=100000,
+            status='pending',
+        )
+        first_paid.verified_at = timezone.now()
+        first_paid.save(update_fields=['verified_at'])
+        second_paid.verified_at = timezone.now()
+        second_paid.save(update_fields=['verified_at'])
+        request = RequestFactory().get('/recruiter/profile/')
+        request.user = self.recruiter
+
+        with patch(
+            'jobs.views_recruiter.render',
+            return_value=HttpResponse(),
+        ) as render:
+            response = recruiter_profile_view(request)
+
+        context = render.call_args.args[2]
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            context['package_spending']['total_amount'],
+            100000,
+        )
+        self.assertEqual(
+            context['package_spending']['transaction_count'],
+            2,
+        )
+        monthly_spending = list(context['package_spending_by_month'])
+        self.assertEqual(len(monthly_spending), 1)
+        self.assertEqual(monthly_spending[0]['total_amount'], 100000)
+        self.assertEqual(monthly_spending[0]['transaction_count'], 2)
+
+        self.client.force_login(self.recruiter)
+        response = self.client.get('/buy-package/')
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'Chọn tháng xem chi tiết')
+        self.assertContains(response, 'Thống kê kinh phí mua gói')
+        self.assertNotContains(response, 'id="monthly-spending-result"')
+
+        selected_month = timezone.now().strftime('%Y-%m')
+        response = self.client.get(
+            '/buy-package/',
+            {'spending_month': selected_month},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="monthly-spending-result"')
+        self.assertContains(response, '100000 VNĐ')
+        self.assertContains(response, '2 giao dịch đã xác nhận')
 
     @override_settings(
         SEPAY_WEBHOOK_SECRET='webhook-secret',
@@ -1309,13 +1912,157 @@ class RecruiterAdminApprovalTests(TestCase):
         self.assertFalse(self.recruiter.is_active)
 
 
+class RecruiterJobCreditTests(TestCase):
+    def setUp(self):
+        self.recruiter = User.objects.create_user(
+            username='credit-recruiter',
+            email='credit-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
+        )
+        self.package = SubscriptionPackage.objects.create(
+            name='Gói 2 tin',
+            duration_days=30,
+            post_limit=2,
+            price=10000,
+        )
+        self.client.force_login(self.recruiter)
+
+    def job_data(self, title):
+        return {
+            'title': title,
+            'company_name': 'Công ty mẫu',
+            'major_required': '',
+            'skills_required': '',
+            'max_hires': 5,
+            'location': 'Hà Nội',
+            'salary': '15 triệu',
+            'job_type': 'Toàn thời gian',
+            'description': 'Mô tả công việc',
+            'requirements': 'Yêu cầu ứng viên',
+            'expires_at': '',
+        }
+
+    def test_each_new_job_consumes_one_package_credit_including_final_credit(self):
+        RecruiterAccount.objects.create(
+            user=self.recruiter,
+            active_package=self.package,
+            posts_remaining=self.package.post_limit,
+            total_posts_purchased=self.package.post_limit,
+            free_posts_left=0,
+            package_expires_at=timezone.now() + timedelta(days=30),
+        )
+
+        for title, expected_remaining in (
+            ('Tin thứ nhất', 1),
+            ('Tin thứ hai', 0),
+        ):
+            response = self.client.post(
+                '/recruiter/jobs/create/',
+                self.job_data(title),
+            )
+            account = self.recruiter.recruiter_account
+            account.refresh_from_db()
+
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(account.posts_remaining, expected_remaining)
+            self.assertEqual(
+                account.total_posts_purchased,
+                self.package.post_limit,
+            )
+
+        response = self.client.get('/recruiter/jobs/create/')
+        self.assertRedirects(response, '/buy-package/')
+        self.assertEqual(Job.objects.filter(recruiter=self.recruiter).count(), 2)
+
+    def test_initial_free_post_is_consumed_before_recruiter_needs_a_package(self):
+        account = RecruiterAccount.objects.create(user=self.recruiter)
+
+        response = self.client.post(
+            '/recruiter/jobs/create/',
+            self.job_data('Tin miễn phí đầu tiên'),
+        )
+
+        account.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(account.free_posts_left, 0)
+        self.assertEqual(account.posts_remaining, 0)
+        self.assertEqual(account.total_posts_purchased, 0)
+        self.assertEqual(Job.objects.filter(recruiter=self.recruiter).count(), 1)
+        self.assertRedirects(
+            self.client.get('/recruiter/jobs/create/'),
+            '/buy-package/',
+        )
+
+    def test_cloning_a_job_consumes_one_package_credit(self):
+        account = RecruiterAccount.objects.create(
+            user=self.recruiter,
+            active_package=self.package,
+            posts_remaining=1,
+            total_posts_purchased=self.package.post_limit,
+            package_expires_at=timezone.now() + timedelta(days=30),
+        )
+        source_job = Job.objects.create(
+            title='Tin gốc',
+            company_name='Công ty mẫu',
+            location='Hà Nội',
+            salary='15 triệu',
+            job_type='Toàn thời gian',
+            description='Mô tả công việc',
+            requirements='Yêu cầu ứng viên',
+            recruiter=self.recruiter,
+        )
+
+        response = self.client.post(
+            f'/recruiter/job/clone/{source_job.pk}/',
+            self.job_data('Tin được nhân bản'),
+        )
+
+        account.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(account.posts_remaining, 0)
+        self.assertEqual(
+            account.total_posts_purchased,
+            self.package.post_limit,
+        )
+        self.assertEqual(Job.objects.filter(recruiter=self.recruiter).count(), 2)
+
+    def test_expired_package_does_not_consume_package_credit_instead_uses_free_credit(self):
+        account = RecruiterAccount.objects.create(
+            user=self.recruiter,
+            active_package=self.package,
+            posts_remaining=2,
+            total_posts_purchased=10,
+            free_posts_left=1,
+            package_expires_at=timezone.now() - timedelta(seconds=1),
+        )
+
+        response = self.client.post(
+            '/recruiter/jobs/create/',
+            self.job_data('Tin dùng lượt miễn phí'),
+        )
+
+        account.refresh_from_db()
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(account.posts_remaining, 2)
+        self.assertEqual(account.total_posts_purchased, 10)
+        self.assertEqual(account.free_posts_left, 0)
+        self.assertEqual(Job.objects.filter(recruiter=self.recruiter).count(), 1)
+
+
 class AdminManageJobsByRecruiterTests(TestCase):
     def setUp(self):
         self.admin = User.objects.create_user(
-            username='jobs-admin', password='test-password', is_staff=True
+            username='jobs-admin',
+            email='jobs-admin@example.com',
+            password='test-password',
+            is_staff=True,
         )
         self.recruiter = User.objects.create_user(
-            username='jobs-recruiter', password='test-password', is_recruiter=True
+            username='jobs-recruiter',
+            email='jobs-recruiter@example.com',
+            password='test-password',
+            is_recruiter=True,
         )
         self.request_factory = RequestFactory()
 
@@ -1348,6 +2095,97 @@ class AdminManageJobsByRecruiterTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(listed_recruiter.job_count, 1)
+
+    def test_admin_recruiter_expander_shows_package_purchases_and_jobs(self):
+        package = SubscriptionPackage.objects.create(
+            name='Gói 30 tin',
+            duration_days=30,
+            post_limit=30,
+            price=70000,
+        )
+        RecruiterAccount.objects.create(
+            user=self.recruiter,
+            active_package=package,
+            posts_remaining=8,
+            total_posts_purchased=30,
+            free_posts_left=2,
+            package_started_at=timezone.now() - timedelta(days=2),
+            package_expires_at=timezone.now() + timedelta(days=28),
+        )
+        PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=package,
+            amount=70000,
+            status='approved',
+        )
+        self.create_job('Tin tuyển dụng cần theo dõi')
+        self.client.force_login(self.admin)
+
+        response = self.client.get('/custom-admin/jobs/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Lượt miễn phí còn')
+        self.assertContains(response, 'Lượt gói còn sử dụng')
+        self.assertContains(response, 'Gói 30 tin')
+        self.assertContains(response, 'Tin tuyển dụng cần theo dõi')
+        self.assertContains(response, '1 lần đã kích hoạt')
+        self.assertContains(response, '10 lượt đăng còn dùng')
+
+    def test_selected_recruiter_package_section_shows_only_package_details(self):
+        package = SubscriptionPackage.objects.create(
+            name='Gói 30 tin',
+            duration_days=30,
+            post_limit=30,
+            price=70000,
+        )
+        RecruiterAccount.objects.create(
+            user=self.recruiter,
+            active_package=package,
+            posts_remaining=8,
+            total_posts_purchased=30,
+            free_posts_left=2,
+            package_started_at=timezone.now() - timedelta(days=2),
+            package_expires_at=timezone.now() + timedelta(days=28),
+        )
+        PackageTransaction.objects.create(
+            recruiter=self.recruiter,
+            package=package,
+            amount=70000,
+            status='approved',
+        )
+        self.create_job('Tin tuyển dụng cần theo dõi')
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            f'/custom-admin/jobs/?recruiter={self.recruiter.pk}&all=1&section=packages'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Tổng lượt đã mua')
+        self.assertContains(response, '<div class="fs-4 fw-bold">30</div>', html=True)
+        self.assertNotContains(response, 'Số lượt còn lại trong CSDL')
+        self.assertContains(response, 'Tổng lượt đăng dùng được hiện tại: 10')
+        self.assertContains(response, 'Gói 30 tin')
+        self.assertContains(response, 'Lịch sử mua gói')
+        self.assertNotContains(response, 'Tin tuyển dụng cần theo dõi')
+
+    def test_selected_recruiter_active_and_expired_sections_show_only_matching_jobs(self):
+        self.create_job('Tin còn hạn mẫu')
+        self.create_job('Tin hết hạn mẫu', timezone.now() - timedelta(days=1))
+        self.client.force_login(self.admin)
+
+        for section, shown_title, hidden_title in (
+            ('active', 'Tin còn hạn mẫu', 'Tin hết hạn mẫu'),
+            ('expired', 'Tin hết hạn mẫu', 'Tin còn hạn mẫu'),
+        ):
+            response = self.client.get(
+                f'/custom-admin/jobs/?recruiter={self.recruiter.pk}&all=1&section={section}'
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, shown_title)
+            self.assertNotContains(response, hidden_title)
+            self.assertNotContains(response, 'Lịch sử mua gói')
 
     def test_admin_jobs_are_grouped_by_expiration_for_selected_recruiter(self):
         self.create_job('Active job')

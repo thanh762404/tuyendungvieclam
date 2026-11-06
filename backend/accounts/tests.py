@@ -4,9 +4,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.messages.storage.fallback import FallbackStorage
-from django.db import IntegrityError
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError
 from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 from docx import Document
@@ -211,6 +211,7 @@ class SignupDuplicateUsernameTests(TestCase):
 
 		self.assertEqual(response.status_code, 200)
 		self.assertIn('username', form.errors)
+		self.assertEqual(form.errors['username'][0], 'Tên đăng nhập này đã được sử dụng. Vui lòng chọn tên khác.')
 
 	def test_concurrent_duplicate_username_returns_form_error_not_integrity_error(self):
 		duplicate_error = IntegrityError(
@@ -222,7 +223,7 @@ class SignupDuplicateUsernameTests(TestCase):
 
 		self.assertEqual(response.status_code, 200)
 		self.assertIn('username', form.errors)
-		self.assertEqual(form.errors['username'][0], 'Tên đăng nhập này đã được sử dụng. Vui lòng chọn tên khác.')
+
 
 	def test_signup_rejects_skills_from_another_major(self):
 		form = SignUpForm(
@@ -240,6 +241,75 @@ class SignupDuplicateUsernameTests(TestCase):
 
 		self.assertFalse(form.is_valid())
 		self.assertIn('skills', form.errors)
+
+
+class RecruiterCompanyAddressTests(TestCase):
+	def test_signup_saves_recruiter_company_address(self):
+		form = SignUpForm(
+			data={
+				'email': 'recruiter@example.com',
+				'first_name': 'Nhà',
+				'last_name': 'tuyển dụng',
+				'password1': 'StrongPassword!9284',
+				'password2': 'StrongPassword!9284',
+				'role': 'recruiter',
+				'phone': '0123456789',
+				'company_name': 'Công ty mẫu',
+				'company_address': 'Địa chỉ đăng ký',
+			},
+			files={
+				'recruiter_cv': SimpleUploadedFile(
+					'recruiter.pdf',
+					b'%PDF-1.4 test',
+					content_type='application/pdf',
+				),
+			},
+		)
+
+		self.assertTrue(form.is_valid(), form.errors)
+		user = form.save()
+
+		self.assertEqual(user.company_profile.address, 'Địa chỉ đăng ký')
+		self.assertEqual(user.recruiter_account.free_posts_left, 1)
+
+	def test_recruiter_can_edit_company_address_in_profile(self):
+		user = User.objects.create_user(
+			username='recruiter',
+			email='recruiter@example.com',
+			password='test-password',
+			is_recruiter=True,
+		)
+		company_profile = CompanyProfile.objects.create(
+			user=user,
+			company_name='Công ty mẫu',
+			address='Địa chỉ cũ',
+		)
+		self.client.force_login(user)
+
+		response = self.client.get('/accounts/profile/edit/')
+
+		self.assertContains(response, 'name="address"')
+		self.assertContains(response, 'class="form-control"')
+		self.assertContains(response, 'placeholder="Nhập địa chỉ công ty..."')
+		self.assertContains(response, 'const isRecruiterProfile = true;')
+
+		response = self.client.post(
+			'/accounts/profile/edit/',
+			{
+				'email': user.email,
+				'first_name': '',
+				'last_name': '',
+				'company_name': 'Công ty mẫu',
+				'phone': '',
+				'address': 'Địa chỉ mới',
+				'website': '',
+				'description': '',
+			},
+		)
+
+		company_profile.refresh_from_db()
+		self.assertEqual(response.status_code, 302)
+		self.assertEqual(company_profile.address, 'Địa chỉ mới')
 
 
 class RecruiterSignupApprovalTests(TestCase):

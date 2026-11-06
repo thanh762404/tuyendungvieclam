@@ -65,14 +65,11 @@ def home_view(request):
     if location:
         all_jobs = all_jobs.filter(location__icontains=location)
 
-    active_jobs = []
-    expired_jobs = []
-
-    for job in all_jobs:
-        if job.is_expired_status:
-            expired_jobs.append(job)
-        else:
-            active_jobs.append(job)
+    now = timezone.now()
+    active_jobs = list(
+        all_jobs.filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
+    )
+    expired_jobs = list(all_jobs.filter(expires_at__lt=now))
 
     profile_skills = []
     candidate_major = ''

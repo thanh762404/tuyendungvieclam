@@ -43,22 +43,22 @@ class CompanyProfile(models.Model):
     description = models.TextField(
         blank=True, null=True, verbose_name="Giới thiệu công ty"
     )
-    # 👉 THÊM 2 TRƯỜNG NÀY ĐỂ QUẢN LÝ TRẠNG THÁI VÀ THỜI GIAN DUYỆT CỦA ADMIN
     is_approved = models.BooleanField(default=False, verbose_name="Đã được Admin duyệt")
     approved_at = models.DateTimeField(blank=True, null=True, verbose_name="Thời gian Admin duyệt")
+
     def __str__(self):
         return self.company_name
 
 
 # ==========================================
-# 4 MODEL MỚI PHỤC VỤ CHO GÓI CƯỚC & THANH TOÁN
+# 4 MODEL PHỤC VỤ CHO GÓI CƯỚC & THANH TOÁN
 # ==========================================
 
 class SubscriptionPackage(models.Model):
     """Gói cước đăng tin do Admin thiết lập (VD: Gói 7 ngày, 30 ngày...)"""
     name = models.CharField(max_length=100, verbose_name="Tên gói cước")
     duration_days = models.IntegerField(verbose_name="Thời hạn (số ngày)")
-    post_limit = models.IntegerField(default=10, verbose_name="Số lượng tin được phép đăng") # Đã thêm theo yêu cầu
+    post_limit = models.IntegerField(default=10, verbose_name="Số lượng tin được phép đăng")
     price = models.DecimalField(max_digits=10, decimal_places=0, verbose_name="Giá tiền (VNĐ)")
     description = models.TextField(blank=True, null=True, verbose_name="Mô tả quyền lợi gói")
 
@@ -67,145 +67,200 @@ class SubscriptionPackage(models.Model):
 
 
 class RecruiterAccount(models.Model):
-  """Quản lý số lượng tin miễn phí còn lại và gói cước hiện tại của Nhà tuyển dụng"""
+    """Quản lý số lượng tin miễn phí còn lại và gói cước hiện tại của Nhà tuyển dụng"""
 
-  user = models.OneToOneField(
-      User,
-      on_delete=models.CASCADE,
-      related_name="recruiter_account",
-      limit_choices_to={"is_recruiter": True},
-      verbose_name="Nhà tuyển dụng",
-  )
-  free_posts_left = models.IntegerField(
-      default=1, verbose_name="Số tin miễn phí còn lại"
-  )
-  active_package = models.ForeignKey(
-      SubscriptionPackage,
-      on_delete=models.SET_NULL,
-      blank=True,
-      null=True,
-      verbose_name="Gói cước đang hoạt động",
-  )
-  posts_remaining = models.IntegerField(
-      default=0, verbose_name="Số tin còn lại trong gói"
-  )
-  package_expires_at = models.DateTimeField(
-      blank=True, null=True, verbose_name="Ngày hết hạn gói cước"
-  )
-
-  # 👉 THÊM CỘT LƯU TÊN NHÀ TUYỂN DỤNG TRỰC TIẾP
-  recruiter_name = models.CharField(
-      max_length=150, blank=True, null=True, verbose_name="Tên nhà tuyển dụng"
-  )
-
-  def save(self, *args, **kwargs):
-    # Tự động đồng bộ tên username vào cột recruiter_name trước khi lưu
-    if self.user:
-      self.recruiter_name = self.user.username
-    super().save(*args, **kwargs)
-
-  @property
-  def is_package_active(self):
-    """Kiểm tra xem gói cước hiện tại còn hạn hay không và còn tin đăng không"""
-    if self.active_package and self.package_expires_at:
-      return (
-          self.package_expires_at > timezone.now()
-          and self.posts_remaining > 0
-      )
-    return False
-
-  def __str__(self):
-    return (
-        f"Tài khoản NTD: {self.recruiter_name or self.user.username} (Tin miễn"
-        f" phí: {self.free_posts_left} | Tin gói: {self.posts_remaining})"
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="recruiter_account",
+        limit_choices_to={"is_recruiter": True},
+        verbose_name="Nhà tuyển dụng",
+    )
+    free_posts_left = models.IntegerField(
+        default=1, verbose_name="Số tin miễn phí còn lại"
+    )
+    active_package = models.ForeignKey(
+        SubscriptionPackage,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        verbose_name="Gói cước đang hoạt động",
+    )
+    posts_remaining = models.IntegerField(
+        default=0, verbose_name="Số tin còn lại trong gói"
+    )
+    
+    # Cột lưu số tin còn lại thực tế có thể sử dụng (tương thích phpMyAdmin)
+    actual_usable_posts = models.IntegerField(
+        default=0, verbose_name="Số lượng tin thực tế khả dụng"
     )
 
+    total_posts_purchased = models.PositiveIntegerField(
+        default=0, verbose_name="Tổng số lượt đăng đã mua"
+    )
+    package_expires_at = models.DateTimeField(
+        blank=True, null=True, verbose_name="Ngày hết hạn gói cước"
+    )
+    package_started_at = models.DateTimeField(
+        blank=True, null=True, verbose_name="Ngày bắt đầu gói cước"
+    )
+
+    recruiter_name = models.CharField(
+        max_length=150, blank=True, null=True, verbose_name="Tên nhà tuyển dụng"
+    )
+
+    def update_usable_posts(self):
+        """
+        Tính toán chuẩn xác: 
+        - Tổng tin khả dụng = Tổng số tin từ các giao dịch còn hạn.
+        - Ngày hết hạn (package_expires_at) = Lấy ngày hết hạn của GÓI MỚI NHẤT VỪA MUA 
+          (hoặc tính từ thời điểm mua gần nhất cộng dồn số ngày tương ứng).
+        """
+        now = timezone.now()
+        approved_txs = PackageTransaction.objects.filter(
+            recruiter=self.user,
+            status="approved"
+        ).select_related("package").order_by("-created_at") # Sắp xếp mới nhất lên đầu
+
+        valid_posts = 0
+        latest_expiry = None
+
+        for tx in approved_txs:
+            start_time = tx.verified_at or tx.created_at
+            duration = tx.package.duration_days if tx.package else 0
+            expiry_time = start_time + timedelta(days=duration)
+
+            # Nếu giao dịch này còn hạn
+            if expiry_time > now:
+                valid_posts += tx.package_posts_count
+                # Lấy mốc hết hạn của giao dịch mới nhất làm mốc hiển thị chính cho tài khoản
+                if not latest_expiry:
+                    latest_expiry = expiry_time
+
+        # Nếu không còn giao dịch nào hạn thì reset về None và 0 tin
+        if valid_posts == 0:
+            self.package_expires_at = None
+            self.actual_usable_posts = 0
+            self.posts_remaining = 0
+        else:
+            self.package_expires_at = latest_expiry
+            self.actual_usable_posts = min(self.posts_remaining, valid_posts)
+
+        super().save(update_fields=["package_expires_at", "actual_usable_posts", "posts_remaining"])
+
+    def save(self, *args, **kwargs):
+        if self.user:
+            self.recruiter_name = self.user.username
+            
+        now = timezone.now()
+        if self.package_expires_at and self.package_expires_at > now:
+            self.actual_usable_posts = max(0, self.posts_remaining)
+        elif not self.package_expires_at:
+            self.actual_usable_posts = max(0, self.posts_remaining)
+        else:
+            self.actual_usable_posts = 0
+            
+        super().save(*args, **kwargs)
+
+    @property
+    def is_package_active(self):
+        if self.active_package and self.package_expires_at:
+            return (
+                self.package_expires_at > timezone.now()
+                and self.actual_usable_posts > 0
+            )
+        return False
+
+    def __str__(self):
+        return (
+            f"Tài khoản NTD: {self.recruiter_name or self.user.username} (Tin khả dụng: {self.actual_usable_posts})"
+        )
 class PackageTransaction(models.Model):
-  """Lịch sử giao dịch chuyển khoản mua gói cước của Nhà tuyển dụng (Để Admin quản lý doanh thu)"""
+    """Lịch sử giao dịch chuyển khoản mua gói cước của Nhà tuyển dụng (Để Admin quản lý doanh thu)"""
 
-  STATUS_CHOICES = (
-      ("pending", "Chờ xác nhận thanh toán"),
-      ("approved", "Đã thanh toán / Kích hoạt"),
-      ("rejected", "Từ chối"),
-  )
-
-  recruiter = models.ForeignKey(
-      User,
-      on_delete=models.CASCADE,
-      limit_choices_to={"is_recruiter": True},
-      verbose_name="Nhà tuyển dụng",
-  )
-  package = models.ForeignKey(
-      SubscriptionPackage, on_delete=models.CASCADE, verbose_name="Gói cước đăng ký"
-  )
-  amount = models.DecimalField(
-      max_digits=10, decimal_places=0, verbose_name="Số tiền thanh toán"
-  )
-  payment_code = models.CharField(
-      max_length=15,
-      unique=True,
-      default=generate_package_payment_code,
-      verbose_name="Mã nội dung thanh toán",
-  )
-  sepay_transaction_id = models.CharField(
-      max_length=100,
-      blank=True,
-      null=True,
-      unique=True,
-      verbose_name="Mã giao dịch SePay",
-  )
-  sepay_received_amount = models.DecimalField(
-      max_digits=10,
-      decimal_places=0,
-      blank=True,
-      null=True,
-      verbose_name="Số tiền nhận từ SePay",
-  )
-  verified_at = models.DateTimeField(
-      blank=True, null=True, verbose_name="Thời gian xác nhận thanh toán"
-  )
-  proof_image = models.ImageField(
-      upload_to="payment_proofs/",
-      blank=True,
-      null=True,
-      verbose_name="Ảnh biên lai chuyển khoản",
-  )
-  status = models.CharField(
-      max_length=20,
-      choices=STATUS_CHOICES,
-      default="pending",
-      verbose_name="Trạng thái giao dịch",
-  )
-  created_at = models.DateTimeField(
-      auto_now_add=True, verbose_name="Ngày tạo giao dịch"
-  )
-
-  # 👉 THÊM 2 CỘT MỚI ĐỂ LƯU TRỰC TIẾP TÊN
-  recruiter_name = models.CharField(
-      max_length=150, blank=True, null=True, verbose_name="Tên nhà tuyển dụng"
-  )
-  package_name = models.CharField(
-      max_length=150, blank=True, null=True, verbose_name="Tên gói cước"
-  )
-
-  def save(self, *args, **kwargs):
-    # Tự động gán tên nhà tuyển dụng và tên gói cước trước khi lưu vào CSDL
-    if self.recruiter:
-      self.recruiter_name = self.recruiter.username  # Hoặc lấy .get_full_name() nếu có
-    if self.package:
-      self.package_name = self.package.name  # Giả sử model gói cước có trường `name`
-
-    super().save(*args, **kwargs)
-
-  def __str__(self):
-    return (
-        f"GD #{self.id} - {self.recruiter_name or self.recruiter.username} -"
-        f" {self.get_status_display()}"
+    STATUS_CHOICES = (
+        ("pending", "Chờ xác nhận thanh toán"),
+        ("approved", "Đã thanh toán / Kích hoạt"),
+        ("rejected", "Từ chối"),
     )
+
+    recruiter = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        limit_choices_to={"is_recruiter": True},
+        verbose_name="Nhà tuyển dụng",
+    )
+    package = models.ForeignKey(
+        SubscriptionPackage, on_delete=models.CASCADE, verbose_name="Gói cước đăng ký"
+    )
+    package_posts_count = models.PositiveIntegerField(
+        default=0, verbose_name="Số tin của gói tại thời điểm mua"
+    )
+    amount = models.DecimalField(
+        max_digits=10, decimal_places=0, verbose_name="Số tiền thanh toán"
+    )
+    payment_code = models.CharField(
+        max_length=15,
+        unique=True,
+        default=generate_package_payment_code,
+        verbose_name="Mã nội dung thanh toán",
+    )
+    sepay_transaction_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        unique=True,
+        verbose_name="Mã giao dịch SePay",
+    )
+    sepay_received_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=0,
+        blank=True,
+        null=True,
+        verbose_name="Số tiền nhận từ SePay",
+    )
+    verified_at = models.DateTimeField(
+        blank=True, null=True, verbose_name="Thời gian xác nhận thanh toán"
+    )
+    proof_image = models.ImageField(
+        upload_to="payment_proofs/",
+        blank=True,
+        null=True,
+        verbose_name="Ảnh biên lai chuyển khoản",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        verbose_name="Trạng thái giao dịch",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True, verbose_name="Ngày tạo giao dịch"
+    )
+
+    recruiter_name = models.CharField(
+        max_length=150, blank=True, null=True, verbose_name="Tên nhà tuyển dụng"
+    )
+    package_name = models.CharField(
+        max_length=150, blank=True, null=True, verbose_name="Tên gói cước"
+    )
+
+    def save(self, *args, **kwargs):
+        if self.recruiter:
+            self.recruiter_name = self.recruiter.username
+        if self.package:
+            self.package_name = self.package.name
+            if not self.pk and not self.package_posts_count:
+                self.package_posts_count = self.package.post_limit
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"GD #{self.id} - {self.recruiter_name or self.recruiter.username} - {self.get_status_display()}"
 
 
 # ==========================================
-# CÁC MODEL CŨ CỦA BẠN (GIỮ NGUYÊN)
+# CÁC MODEL KHÁC CỦA BẠN (GIỮ NGUYÊN)
 # ==========================================
 
 class Job(models.Model):
@@ -220,7 +275,6 @@ class Job(models.Model):
     description = models.TextField(verbose_name="Mô tả công việc")
     requirements = models.TextField(verbose_name="Yêu cầu ứng viên")
 
-    # BỔ SUNG 2 TRƯỜNG NÀY ĐỂ LỌC TÌM KIẾM
     major_required = models.CharField(max_length=255, blank=True, null=True, verbose_name="Ngành yêu cầu")
     skills_required = models.TextField(blank=True, null=True, verbose_name="Kỹ năng yêu cầu")
     max_hires = models.PositiveIntegerField(
@@ -240,6 +294,11 @@ class Job(models.Model):
         limit_choices_to={"is_recruiter": True},
         verbose_name="Nhà tuyển dụng",
     )
+    recruiter_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Tên công ty nhà tuyển dụng",
+    )
     status = models.CharField(
         max_length=20,
         choices=[
@@ -253,7 +312,6 @@ class Job(models.Model):
 
     @property
     def company_obj(self):
-        """Lấy profile công ty của nhà tuyển dụng đăng bài này"""
         try:
             return self.recruiter.company_profile
         except CompanyProfile.DoesNotExist:
@@ -261,7 +319,6 @@ class Job(models.Model):
 
     @property
     def get_company_name(self):
-        """Ưu tiên lấy tên công ty từ Profile, nếu không có thì lấy trường company_name"""
         profile = self.company_obj
         if profile and profile.company_name:
             return profile.company_name
@@ -269,30 +326,35 @@ class Job(models.Model):
 
     @property
     def company_logo(self):
-        """Lấy file logo riêng của nhà tuyển dụng đăng bài để tránh bị trùng lặp"""
         profile = self.company_obj
         if profile and profile.company_logo:
             return profile.company_logo
         return None
 
     def save(self, *args, **kwargs):
-        # Tự động đồng bộ tên công ty từ CompanyProfile sang Job nếu chưa điền
-        if not self.company_name:
-            profile = self.company_obj
-            if profile:
+        profile = self.company_obj
+        if profile and profile.company_name:
+            self.recruiter_name = profile.company_name.strip()
+            if not self.company_name:
                 self.company_name = profile.company_name
+        else:
+            self.recruiter_name = (
+                self.company_name
+                or self.recruiter.display_name
+                or self.recruiter.email
+            )
+        if not self.company_name:
+            self.company_name = self.recruiter_name
         super().save(*args, **kwargs)
 
     @property
     def is_expired_status(self):
-        """Kiểm tra xem tin tuyển dụng đã quá hạn hay chưa"""
         if self.expires_at:
             return timezone.now() > self.expires_at
         return False
 
     @property
     def is_urgent_status(self):
-        """Sắp hết hạn: Còn dưới 3 ngày nữa là hết hạn và chưa thực sự hết hạn"""
         if self.expires_at and not self.is_expired_status:
             time_left = self.expires_at - timezone.now()
             return 0 < time_left.total_seconds() <= (3 * 24 * 60 * 60)
@@ -300,7 +362,6 @@ class Job(models.Model):
 
     @property
     def is_new_status(self):
-        """Tin được coi là 'Mới' nếu được đăng trong vòng 3 ngày gần đây"""
         if self.created_at:
             return (timezone.now() - self.created_at).days <= 3
         return False
@@ -341,7 +402,7 @@ class Application(models.Model):
         verbose_name="Trạng thái",
     )
     updated_at = models.DateTimeField(auto_now=True)
-    # 👉 THÊM HÀM NÀY ĐỂ TRẢ VỀ CHUỖI TIẾNG VIỆT CHUẨN XÁC
+    
     def get_status_display_vi(self):
         status_map = {
             'Pending': 'Đang chờ duyệt',
@@ -352,6 +413,7 @@ class Application(models.Model):
             'Rejected': 'Từ chối',
         }
         return status_map.get(self.status, self.status)
+        
     interview_details = models.TextField(
         blank=True,
         null=True,
@@ -359,7 +421,6 @@ class Application(models.Model):
     )
     applied_at = models.DateTimeField(auto_now_add=True, verbose_name="Ngày nộp")
     
-    # Đánh dấu xem đã gửi email nhắc nhở dưới 24h chưa để tránh gửi lặp lại
     reminder_sent = models.BooleanField(
         default=False, 
         verbose_name="Đã gửi email nhắc nhở 24h"
@@ -427,7 +488,6 @@ class Application(models.Model):
         except ValueError:
             return None
 
-        # Luôn luôn ép về dạng aware (có múi giờ) để không bao giờ bị lỗi so sánh
         current_tz = timezone.get_current_timezone()
         if timezone.is_naive(parsed):
             parsed = timezone.make_aware(parsed, current_tz)
@@ -445,7 +505,6 @@ class Application(models.Model):
 
         now = timezone.now()
         
-        # Đảm bảo cả hai cùng dạng aware hoặc naive trước khi so sánh
         if timezone.is_naive(interview_dt) and not timezone.is_naive(now):
             interview_dt = timezone.make_aware(interview_dt, timezone.get_current_timezone())
         elif not timezone.is_naive(interview_dt) and timezone.is_naive(now):
@@ -473,9 +532,77 @@ class Application(models.Model):
         return f"{self.candidate.username} - {self.job.title}"
 
 
-class JobChatMessage(models.Model):
-    """Bảng lưu trữ tin nhắn chat trực tiếp giữa ứng viên và nhà tuyển dụng theo từng bài đăng tuyển dụng"""
+class QualifiedCandidate(models.Model):
+    application = models.OneToOneField(
+        Application,
+        on_delete=models.CASCADE,
+        related_name="qualified_entry",
+        verbose_name="Đơn ứng tuyển",
+    )
+    candidate = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="qualified_applications",
+        limit_choices_to={"is_candidate": True},
+        verbose_name="Ứng viên",
+    )
+    job = models.ForeignKey(
+        Job,
+        on_delete=models.CASCADE,
+        related_name="qualified_candidates",
+        verbose_name="Tin tuyển dụng",
+    )
+    recruiter = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="qualified_candidates",
+        limit_choices_to={"is_recruiter": True},
+        verbose_name="Nhà tuyển dụng",
+    )
+    candidate_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Tên ứng viên",
+    )
+    recruiter_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Tên nhà tuyển dụng",
+    )
+    company_name = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Tên công ty",
+    )
+    job_title = models.CharField(
+        max_length=255,
+        blank=True,
+        verbose_name="Tên công việc",
+    )
+    status = models.CharField(
+        max_length=50,
+        choices=[
+            (label, label)
+            for status, label in Application._meta.get_field("status").choices
+            if status in HIRING_PIPELINE_STATUSES
+        ],
+        verbose_name="Trạng thái đạt",
+    )
+    qualified_at = models.DateTimeField(
+        default=timezone.now,
+        verbose_name="Ngày vào danh sách ứng viên đạt",
+    )
 
+    class Meta:
+        ordering = ("-qualified_at",)
+        verbose_name = "Ứng viên đạt"
+        verbose_name_plural = "Danh sách ứng viên đạt"
+
+    def __str__(self):
+        return f"{self.candidate} - {self.job}"
+
+
+class JobChatMessage(models.Model):
     job = models.ForeignKey(
         Job,
         on_delete=models.CASCADE,
@@ -517,10 +644,8 @@ class ContactMessage(models.Model):
 
     def __str__(self):
         return f"{self.name} - {self.email}"
-    
+
 class Notification(models.Model):
-    """Bảng lưu trữ thông báo thời gian thực cho User (Ứng viên hoặc Nhà tuyển dụng)"""
-    
     recipient = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -532,7 +657,6 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False, verbose_name="Đã đọc")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời gian tạo")
 
-    # Lưu thêm các trường hỗ trợ hiển thị (tùy chọn)
     job_title = models.CharField(max_length=255, blank=True, null=True, verbose_name="Tên công việc liên quan")
     company_name = models.CharField(max_length=255, blank=True, null=True, verbose_name="Tên công ty")
     application = models.ForeignKey(
@@ -546,3 +670,34 @@ class Notification(models.Model):
 
     def __str__(self):
         return f"Thông báo cho {self.recipient.username} - {self.title}"
+
+
+class SystemFeature(models.Model):
+    STORAGE_STATUS_CHOICES = (
+        ("tables", "Có bảng dữ liệu"),
+        ("derived", "Tổng hợp từ bảng hiện có"),
+        ("static", "Nội dung tĩnh, không có bảng riêng"),
+    )
+
+    code = models.SlugField(max_length=100, unique=True, verbose_name="Mã chức năng")
+    name = models.CharField(max_length=200, verbose_name="Tên chức năng")
+    actor = models.CharField(max_length=50, verbose_name="Vai trò")
+    storage_status = models.CharField(
+        max_length=20,
+        choices=STORAGE_STATUS_CHOICES,
+        verbose_name="Trạng thái dữ liệu",
+    )
+    related_tables = models.TextField(
+        blank=True,
+        verbose_name="Bảng dữ liệu liên quan",
+        help_text="Tên bảng MySQL, phân cách bằng dấu phẩy.",
+    )
+    notes = models.TextField(blank=True, verbose_name="Ghi chú")
+
+    class Meta:
+        ordering = ("actor", "code")
+        verbose_name = "Chức năng hệ thống"
+        verbose_name_plural = "Danh mục chức năng hệ thống"
+
+    def __str__(self):
+        return f"{self.name} ({self.actor})"

@@ -19,7 +19,6 @@
         .pagination .page-item.active .page-link { background-color: var(--primary-color); border-color: var(--primary-color); }
         .pagination .page-link { color: var(--primary-color); }
         .admin-card { border: 1px solid #e8edf2; border-radius: 1rem; }
-        .container.my-4 { max-width: 1320px; }
         .admin-table { width: 100%; min-width: 0; table-layout: fixed; }
         .admin-table thead th { color: #68778a; font-size: .72rem; letter-spacing: .03em; text-transform: uppercase; background: #f7f9fb; white-space: normal; }
         .admin-table th, .admin-table td { padding: .7rem .45rem; overflow-wrap: anywhere; }
@@ -41,6 +40,11 @@
         .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
         @media (max-width: 1199.98px) { .admin-table { min-width: 820px; table-layout: auto; } }
         @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
+        .container.my-4 { width: 100%; max-width: none; padding-left: clamp(16px, 2vw, 36px); padding-right: clamp(16px, 2vw, 36px); }
+        .admin-layout { display: grid; grid-template-columns: minmax(220px, 18%) minmax(0, 1fr); gap: 1.5rem; margin-left: 0; margin-right: 0; }
+        .admin-sidebar-column, .admin-content-column { width: auto; max-width: none; min-width: 0; padding-left: 0; padding-right: 0; }
+        .admin-sidebar-column { margin-bottom: 0 !important; }
+        @media (max-width: 767.98px) { .admin-layout { grid-template-columns: minmax(0, 1fr); } }
     </style>
 </head>
 <body>
@@ -62,9 +66,9 @@
             {% endfor %}
         {% endif %}
 
-        <div class="row">
+        <div class="row admin-layout">
             <!-- Sidebar -->
-            <div class="col-md-3 mb-4">
+            <div class="col-md-3 mb-4 admin-sidebar-column">
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
@@ -117,7 +121,7 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9">
+            <div class="col-md-9 admin-content-column">
                 <div class="card admin-card shadow-sm p-4 bg-white">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                         <div>

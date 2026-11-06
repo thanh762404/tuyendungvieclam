@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from .models import User, Profile
 from .skills import invalid_skills_for_major
-from jobs.models import CompanyProfile
+from jobs.models import CompanyProfile, RecruiterAccount
 import re
 
 # ĐỊNH NGHĨA 6 NGÀNH CHUẨN DÙNG CHUNG CHO TOÀN BỘ HỆ THỐNG
@@ -81,7 +81,6 @@ class SignUpForm(UserCreationForm):
         label='Số điện thoại',
     )
 
-    # Thêm trường Ngày sinh và Địa chỉ (dùng chung giao diện, phân tách xử lý khi save)
     birth_date = forms.DateField(
         required=False,
         widget=forms.DateInput(
@@ -94,7 +93,7 @@ class SignUpForm(UserCreationForm):
     )
     address = forms.CharField(
         required=False,
-        widget=forms.HiddenInput(), # Nhận giá trị chuỗi địa chỉ ghép từ các dropdown ở Frontend
+        widget=forms.HiddenInput(),
     )
 
     major = forms.ChoiceField(
@@ -118,7 +117,6 @@ class SignUpForm(UserCreationForm):
 
     class Meta(UserCreationForm.Meta):
         model = User
-        # Bỏ 'username' khỏi danh sách hiển thị form, chỉ giữ lại các trường cần thiết
         fields = (
             'email',
             'first_name',
@@ -178,10 +176,7 @@ class SignUpForm(UserCreationForm):
             self.add_error('skills', 'Vui lòng chọn kỹ năng thuộc ngành đào tạo đã chọn.')
 
     def save(self, commit=True):
-        # Gọi super().save(commit=False) để UserCreationForm tự động xử lý và băm mật khẩu từ form
         user = super().save(commit=False)
-        
-        # Gán ngầm định username = email để hệ thống Django Authentication hoạt động bình thường
         email = self.cleaned_data.get('email')
         user.username = email
         
@@ -194,9 +189,7 @@ class SignUpForm(UserCreationForm):
             user.recruiter_cv = self.cleaned_data.get('recruiter_cv')
 
         if commit:
-            user.save() # Lúc này Django sẽ lưu cả mật khẩu đã được mã hóa vào bảng accounts_user
-            
-            # Phân tách dữ liệu lưu trữ tùy theo vai trò đăng ký
+            user.save()
             if role == 'candidate':
                 Profile.objects.create(
                     user=user,
@@ -208,11 +201,15 @@ class SignUpForm(UserCreationForm):
                 )
             elif role == 'recruiter':
                 CompanyProfile.objects.create(
-                    user=user, # Liên kết nhà tuyển dụng với thông tin công ty
+                    user=user,
+                    company_name=self.cleaned_data.get('company_name') or 'Nhà tuyển dụng',
                     phone=self.cleaned_data.get('phone'),
-                    address=self.cleaned_data.get('address'), # Địa chỉ trụ sở công ty
+                    address=self.cleaned_data.get('company_address'),
+                    website=self.cleaned_data.get('company_website'),
                 )
+                RecruiterAccount.objects.get_or_create(user=user)
         return user
+
 
 class UserUpdateForm(forms.ModelForm):
     email = forms.EmailField(required=True, label='Email')
@@ -268,7 +265,12 @@ class CompanyProfileForm(forms.ModelForm):
         widgets = {
             'company_name': forms.TextInput(attrs={'class': 'form-control'}),
             'phone': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nhập số điện thoại liên hệ...'}),
-            'address': forms.TextInput(attrs={'class': 'form-control'}),
+            'address': forms.TextInput(
+                attrs={
+                    'class': 'form-control',
+                    'placeholder': 'Nhập địa chỉ công ty...',
+                }
+            ),
             'website': forms.URLInput(attrs={'class': 'form-control'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 4}),
             'company_logo': forms.FileInput(attrs={'class': 'form-control'}),

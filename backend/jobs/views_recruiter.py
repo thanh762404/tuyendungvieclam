@@ -3,7 +3,9 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
-from django.db.models import Count, Q
+from django.db import transaction
+from django.db.models import Count, Q, Sum
+from django.db.models.functions import Coalesce, TruncMonth
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -18,9 +20,73 @@ from .models import (
     HIRING_CAPACITY_STATUSES,
     HIRING_PIPELINE_STATUSES,
     PackageTransaction,
+    QualifiedCandidate,
     RecruiterAccount,
     SubscriptionPackage,
 )
+from .models import PackageTransaction, RecruiterAccount
+
+def approve_package_transaction(transaction):
+    # 1. Đổi trạng thái giao dịch thành approved
+    transaction.status = "approved"
+    transaction.verified_at = timezone.now()
+    transaction.save()
+
+    # 2. Lấy hoặc tạo RecruiterAccount của nhà tuyển dụng tương ứng
+    recruiter_account, created = RecruiterAccount.objects.get_or_create(
+        user=transaction.recruiter
+    )
+
+    # 3. Lấy số lượng tin từ gói cước được mua
+    package = transaction.package
+    posts_to_add = transaction.package_posts_count or package.post_limit
+
+    # 4. Cập nhật gói cước đang áp dụng và cộng dồn số tin
+    recruiter_account.active_package = package
+    recruiter_account.package_started_at = timezone.now()
+    
+    # Cộng dồn số tin vào kho và tổng số tin đã mua
+    recruiter_account.posts_remaining += posts_to_add
+    recruiter_account.total_posts_purchased += posts_to_add
+    
+    # Lưu lại trước để cập nhật posts_remaining vào CSDL
+    recruiter_account.save()
+    
+    # 👉 5. GỌI HÀM TÍNH TOÁN LẠI ĐỂ TỰ ĐỘNG CẬP NHẬT NGÀY HẾT HẠN XA NHẤT VÀ SỐ TIN KHẢ DỤNG
+    recruiter_account.update_usable_posts()
+
+def _package_spending_context(user, selected_month=""):
+    approved_transactions = PackageTransaction.objects.filter(
+        recruiter=user,
+        status="approved",
+    )
+    monthly_spending = list(
+        approved_transactions.annotate(
+            payment_month=TruncMonth(Coalesce("verified_at", "created_at"))
+        )
+        .values("payment_month")
+        .annotate(total_amount=Sum("amount"), transaction_count=Count("pk"))
+        .order_by("-payment_month")
+    )
+    selected_month_spending = next(
+        (
+            month
+            for month in monthly_spending
+            if month["payment_month"].strftime("%Y-%m") == selected_month
+        ),
+        None,
+    )
+    return {
+        "package_spending_by_month": monthly_spending,
+        "selected_spending_month": (
+            selected_month if selected_month_spending else ""
+        ),
+        "selected_month_spending": selected_month_spending,
+        "package_spending": approved_transactions.aggregate(
+            total_amount=Sum("amount"),
+            transaction_count=Count("pk"),
+        ),
+    }
 
 
 @login_required
@@ -33,7 +99,6 @@ def recruiter_profile_view(request):
         user=request.user,
         defaults={"company_name": "Nhà tuyển dụng"},
     )
-
     if request.method == "POST":
         form = CompanyProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
@@ -44,7 +109,13 @@ def recruiter_profile_view(request):
         form = CompanyProfileForm(instance=profile)
 
     return render(
-        request, "jobs/recruiter_profile.html", {"form": form, "profile": profile}
+        request,
+        "jobs/recruiter_profile.html",
+        {
+            "form": form,
+            "profile": profile,
+            **_package_spending_context(request.user),
+        },
     )
 
 
@@ -138,6 +209,32 @@ def mark_job_chat_read(request, pk):
     return JsonResponse({"status": "success"})
 
 
+def _save_new_job_with_credit(job, recruiter):
+    with transaction.atomic():
+        profile_account = RecruiterAccount.objects.select_for_update().get(
+            user=recruiter
+        )
+        if profile_account.is_package_active:
+            profile_account.posts_remaining -= 1
+            remaining_credits = profile_account.posts_remaining
+            credit_field = "posts_remaining"
+            credit_source = "package"
+        elif profile_account.free_posts_left > 0:
+            profile_account.free_posts_left -= 1
+            remaining_credits = profile_account.free_posts_left
+            credit_field = "free_posts_left"
+            credit_source = "free"
+        else:
+            return None
+
+        job.recruiter = recruiter
+        job.status = "Approved"
+        job.save()
+        profile_account.save(update_fields=[credit_field])
+
+    return credit_source, remaining_credits
+
+
 @login_required
 def job_create(request):
     """Đăng tin mới: Ưu tiên trừ tin trong gói, nếu hết gói thì trừ tin miễn phí"""
@@ -169,33 +266,25 @@ def job_create(request):
         form = JobForm(request.POST)
         if form.is_valid():
             job = form.save(commit=False)
-            job.recruiter = request.user
-            job.status = "Approved"
-            job.save()
-
-            if is_package_valid and posts_remaining > 0:
-                profile_account.posts_remaining -= 1
-                if profile_account.posts_remaining <= 0:
-                    profile_account.is_package_active = False
-                profile_account.save()
-
+            credit = _save_new_job_with_credit(job, request.user)
+            if credit is None:
+                messages.warning(
+                    request,
+                    "Bạn đã hết lượt đăng tin. Vui lòng mua gói cước để tiếp tục.",
+                )
+                return redirect("buy_package")
+            credit_source, remaining_credits = credit
+            if credit_source == "package":
                 messages.success(
                     request,
                     f"Đăng tin thành công bằng gói cước! Bạn còn lại "
-                    f"{profile_account.posts_remaining} lượt đăng trong gói.",
+                    f"{remaining_credits} lượt đăng trong gói.",
                 )
-            elif is_package_valid:
-                messages.success(
-                    request,
-                    "Đăng tin thành công bằng gói cước hiện tại của bạn!",
-                )
-            elif has_free_post:
-                profile_account.free_posts_left -= 1
-                profile_account.save()
+            else:
                 messages.success(
                     request,
                     f"Đăng tin thành công bằng lượt tin miễn phí! Bạn còn lại "
-                    f"{profile_account.free_posts_left} lượt miễn phí.",
+                    f"{remaining_credits} lượt miễn phí.",
                 )
 
             return redirect("recruiter_job_list")
@@ -238,16 +327,13 @@ def job_clone(request, pk):
         if form.is_valid():
             new_job = form.save(commit=False)
             new_job.pk = None
-            new_job.recruiter = request.user
-            new_job.status = "Approved"
-            new_job.save()
-
-            if has_active_package:
-                profile_account.posts_remaining -= 1
-                profile_account.save()
-            elif has_free_post:
-                profile_account.free_posts_left -= 1
-                profile_account.save()
+            credit = _save_new_job_with_credit(new_job, request.user)
+            if credit is None:
+                messages.warning(
+                    request,
+                    "Bạn đã hết lượt đăng tin. Vui lòng mua gói cước để tiếp tục.",
+                )
+                return redirect("buy_package")
 
             messages.success(
                 request, "Tạo tin tuyển dụng mới từ tin cũ thành công!"
@@ -270,7 +356,12 @@ def buy_package_view(request):
         return redirect("home")
 
     packages = SubscriptionPackage.objects.all()
+    
+    # 1. Khởi tạo profile_account trước tiên
     profile_account, _ = RecruiterAccount.objects.get_or_create(user=request.user)
+
+    # 2. 🔥 GỌI HÀM CẬP NHẬT TÍNH TOÁN NGAY LẬP TỨC ĐỂ LÀM SẠCH DỮ LIỆU CŨ
+    profile_account.update_usable_posts()
 
     now = timezone.now()
 
@@ -283,16 +374,13 @@ def buy_package_view(request):
     if has_active_package:
         remaining_credits = profile_account.posts_remaining
         
-        # --- ĐOẠN SỬA LỖI Ở ĐÂY ---
-        # Lấy ngày tạo giao dịch thành công mới nhất của nhà tuyển dụng làm ngày bắt đầu gói
+        # Lấy ngày bắt đầu của giao dịch được duyệt gần đây nhất còn hạn
         last_tx = PackageTransaction.objects.filter(
             recruiter=request.user, 
             status="approved"
         ).order_by("-created_at").first()
         
-        start_date = last_tx.created_at if last_tx else None
-        # ---------------------------
-        
+        start_date = (last_tx.verified_at or last_tx.created_at) if last_tx else None
         expires_at = profile_account.package_expires_at
     else:
         remaining_credits = 0
@@ -361,6 +449,10 @@ def buy_package_view(request):
         "start_date": start_date,
         "expires_at": expires_at,
         "active_transaction": active_transaction,
+        **_package_spending_context(
+            request.user,
+            request.GET.get("spending_month", ""),
+        ),
         "sepay_bank_account": settings.SEPAY_BANK_ACCOUNT,
         "sepay_bank_account_name": getattr(
             settings, "SEPAY_BANK_ACCOUNT_NAME", "LE CHI THANH"
@@ -368,7 +460,6 @@ def buy_package_view(request):
     }
 
     return render(request, "jobs/buy_package.html", context)
-
 
 @login_required
 def package_transaction_status(request, pk):
@@ -423,11 +514,16 @@ def job_detail(request, pk):
 
 @login_required
 def all_approved_candidates_view(request):
-    approved_list = Application.objects.filter(
-        job__recruiter=request.user,
-        status__in=HIRING_PIPELINE_STATUSES,
-    ).select_related('job', 'candidate')
-    
+    qualified_entries = QualifiedCandidate.objects.filter(
+        recruiter=request.user,
+    ).select_related(
+        'application__job',
+        'application__candidate',
+        'application__candidate__profile',
+        'job__recruiter__company_profile',
+    )
+    approved_list = [entry.application for entry in qualified_entries]
+
     context = {
         'approved_list': approved_list
     }
@@ -437,10 +533,16 @@ def all_approved_candidates_view(request):
 @login_required
 def job_achieved_candidates_view(request, pk):
     job = get_object_or_404(Job, pk=pk, recruiter=request.user)
-    approved_list = Application.objects.filter(
+    qualified_entries = QualifiedCandidate.objects.filter(
+        recruiter=request.user,
         job=job,
-        status__in=HIRING_PIPELINE_STATUSES,
-    ).select_related('candidate')
+    ).select_related(
+        'application__job',
+        'application__candidate',
+        'application__candidate__profile',
+        'job__recruiter__company_profile',
+    )
+    approved_list = [entry.application for entry in qualified_entries]
 
     return render(
         request,

@@ -95,6 +95,9 @@
                 {% if status_error %}
                     <div class="alert alert-danger border-0 rounded-3 mb-4 small" role="alert">{{ status_error }}</div>
                 {% endif %}
+                {% if schedule_error %}
+                    <div class="alert alert-danger border-0 rounded-3 mb-4 small" role="alert">{{ schedule_error }}</div>
+                {% endif %}
                 
                 <form method="post">
                     {% csrf_token %}
@@ -115,11 +118,31 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label id="date-label" for="interview-date" class="form-label fw-bold text-dark schedule-field-label">Ngày hẹn:</label>
-                                <input id="interview-date" type="date" name="interview_date" class="form-control rounded-3 py-2" value="{{ interview_date }}">
+                                <input id="interview-date" type="date" name="interview_date" class="form-control rounded-3 py-2" value="{{ interview_date }}" min="{{ min_interview_date }}">
                             </div>
                             <div class="col-md-6">
-                                <label id="time-label" for="interview-time" class="form-label fw-bold text-dark schedule-field-label">Giờ hẹn:</label>
-                                <input id="interview-time" type="time" name="interview_time" class="form-control rounded-3 py-2" value="{{ interview_time }}">
+                                <label id="time-label" for="interview-time-24" class="form-label fw-bold text-dark schedule-field-label">Giờ hẹn:</label>
+                                <div id="interview-time-12" class="d-flex flex-nowrap gap-2">
+                                    <select id="interview-hour" name="interview_hour" class="form-select rounded-3 py-2" aria-label="Giờ" disabled>
+                                        {% for value, label in hour_choices %}
+                                        <option value="{{ value }}" {% if value == interview_hour %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <span class="d-flex align-items-center fw-bold">:</span>
+                                    <select id="interview-minute" name="interview_minute" class="form-select rounded-3 py-2" aria-label="Phút" disabled>
+                                        {% for value, label in minute_choices %}
+                                        <option value="{{ value }}" {% if value == interview_minute %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <select id="interview-period" name="interview_period" class="form-select rounded-3 py-2" aria-label="Buổi sáng hoặc chiều" style="flex: 0 0 90px;" disabled>
+                                        <option value="AM" {% if interview_period != 'PM' %}selected{% endif %}>AM</option>
+                                        <option value="PM" {% if interview_period == 'PM' %}selected{% endif %}>PM</option>
+                                    </select>
+                                </div>
+                                <div id="interview-time-24-wrap">
+                                    <input id="interview-time-24" type="time" name="interview_time" class="form-control rounded-3 py-2" value="{{ interview_time_24 }}" step="60">
+                                </div>
+                                <div id="interview-time-help" class="form-text">Giờ theo định dạng 24 tiếng.</div>
                             </div>
                         </div>
 
@@ -135,8 +158,10 @@
                         </div>
                     </div>
 
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-success-custom py-2.5 rounded-pill fw-semibold shadow-sm">Lưu thay đổi</button>
+                    <div class="d-grid gap-2">
+                        <button type="submit" name="action" value="update_status" class="btn btn-success-custom py-2.5 rounded-pill fw-semibold shadow-sm">
+                            Lưu thay đổi
+                        </button>
                     </div>
                 </form>
             </div>
@@ -144,52 +169,180 @@
     </div>
     <script>
         const statusSelect = document.querySelector('select[name="status"]');
-        const scheduleFields = document.getElementById('schedule-fields');
         const dateLabel = document.getElementById('date-label');
         const timeLabel = document.getElementById('time-label');
-        const noteLabel = document.getElementById('note-label');
-        const scheduleDate = document.getElementById('interview-date');
-        const scheduleTime = document.getElementById('interview-time');
-        const scheduleNote = document.getElementById('interview-note');
+        const time12Group = document.getElementById('interview-time-12');
+        const time24Wrap = document.getElementById('interview-time-24-wrap');
+        const time24Input = document.getElementById('interview-time-24');
+        const hour12Input = document.getElementById('interview-hour');
+        const minute12Input = document.getElementById('interview-minute');
+        const period12Input = document.getElementById('interview-period');
+        const timeHelp = document.getElementById('interview-time-help');
+        const dateInput = document.getElementById('interview-date');
+        const scheduleForm = dateInput.closest('form');
+        let currentTimeMode = '{{ time_status|default:application.status }}' === 'Approved' ? '12' : '24';
 
         function getScheduleType(status) {
             if (status === 'Approved') return 'interview';
             if (['InterviewPassed', 'Trial', 'Hired'].includes(status)) return 'work';
-            return 'none';
+            return 'general';
         }
 
-        let previousScheduleType = getScheduleType(statusSelect.value);
+        function copyTime(mode) {
+            if (mode === '12') {
+                const [hourText, minute] = (time24Input.value || '09:00').split(':');
+                const hour24 = Number(hourText);
+                hour12Input.value = String(hour24 % 12 || 12).padStart(2, '0');
+                minute12Input.value = minute || '00';
+                period12Input.value = hour24 >= 12 ? 'PM' : 'AM';
+                return;
+            }
+
+            let hour24 = Number(hour12Input.value) % 12;
+            if (period12Input.value === 'PM') hour24 += 12;
+            time24Input.value = `${String(hour24).padStart(2, '0')}:${minute12Input.value}`;
+        }
+
+        function updateTimeMode(status) {
+            const nextMode = status === 'Approved' ? '12' : '24';
+            if (nextMode !== currentTimeMode) copyTime(nextMode);
+            currentTimeMode = nextMode;
+            const isInterview = nextMode === '12';
+            time12Group.classList.toggle('d-none', !isInterview);
+            time24Wrap.classList.toggle('d-none', isInterview);
+            hour12Input.disabled = !isInterview;
+            minute12Input.disabled = !isInterview;
+            period12Input.disabled = !isInterview;
+            time24Input.disabled = isInterview;
+            timeHelp.textContent = isInterview
+                ? 'Chọn giờ 12 tiếng và phút, sau đó chọn AM (sáng) hoặc PM (chiều/tối).'
+                : 'Giờ theo định dạng 24 tiếng.';
+        }
 
         function updateScheduleFields() {
             const scheduleType = getScheduleType(statusSelect.value);
-            if (scheduleType !== previousScheduleType) {
-                scheduleDate.value = '';
-                scheduleTime.value = '';
-                scheduleNote.value = '';
-            }
-
-            scheduleFields.hidden = scheduleType === 'none';
+            updateTimeMode(statusSelect.value);
             if (scheduleType === 'interview') {
                 dateLabel.textContent = 'Ngày phỏng vấn:';
                 timeLabel.textContent = 'Giờ phỏng vấn:';
-                noteLabel.textContent = 'Ghi chú (không bắt buộc):';
-                scheduleNote.placeholder = 'Nhập ghi chú cho ứng viên...';
-                scheduleDate.required = true;
-                scheduleTime.required = true;
             } else if (scheduleType === 'work') {
                 dateLabel.textContent = 'Ngày bắt đầu thử việc/đi làm (không bắt buộc):';
                 timeLabel.textContent = 'Giờ bắt đầu (không bắt buộc):';
-                noteLabel.textContent = 'Ghi chú (không bắt buộc):';
-                scheduleNote.placeholder = 'Nhập ghi chú cho ứng viên...';
-                scheduleDate.required = false;
-                scheduleTime.required = false;
+            } else {
+                dateLabel.textContent = 'Ngày hẹn:';
+                timeLabel.textContent = 'Giờ hẹn:';
             }
-
-            previousScheduleType = scheduleType;
         }
 
-        statusSelect.addEventListener('change', updateScheduleFields);
+        function updateMinimumScheduleTime() {
+            const now = new Date();
+            const isToday = dateInput.value === dateInput.min;
+            if (!isToday) {
+                time24Input.removeAttribute('min');
+                for (const option of period12Input.options) option.disabled = false;
+                for (const option of hour12Input.options) option.disabled = false;
+                for (const option of minute12Input.options) option.disabled = false;
+                return;
+            }
+
+            const earliestAllowed = new Date(now);
+            earliestAllowed.setSeconds(0, 0);
+            earliestAllowed.setMinutes(earliestAllowed.getMinutes() + 1);
+            time24Input.min = `${String(earliestAllowed.getHours()).padStart(2, '0')}:${String(earliestAllowed.getMinutes()).padStart(2, '0')}`;
+
+            function isFutureTime(hour, minute, period) {
+                let hour24 = Number(hour) % 12;
+                if (period === 'PM') hour24 += 12;
+                const candidate = new Date(`${dateInput.value}T${String(hour24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+                return candidate >= earliestAllowed;
+            }
+
+            for (const periodOption of period12Input.options) {
+                periodOption.disabled = !Array.from(hour12Input.options).some(
+                    hourOption => Array.from(minute12Input.options).some(
+                        minuteOption => isFutureTime(hourOption.value, minuteOption.value, periodOption.value)
+                    )
+                );
+            }
+            if (period12Input.selectedOptions[0].disabled) {
+                const nextPeriod = Array.from(period12Input.options).find(
+                    option => !option.disabled
+                );
+                if (nextPeriod) period12Input.value = nextPeriod.value;
+            }
+            for (const hourOption of hour12Input.options) {
+                hourOption.disabled = !Array.from(minute12Input.options).some(
+                    minuteOption => isFutureTime(hourOption.value, minuteOption.value, period12Input.value)
+                );
+            }
+            if (hour12Input.selectedOptions[0].disabled) {
+                const nextHour = Array.from(hour12Input.options).find(
+                    option => !option.disabled
+                );
+                if (nextHour) hour12Input.value = nextHour.value;
+            }
+            for (const minuteOption of minute12Input.options) {
+                minuteOption.disabled = !isFutureTime(
+                    hour12Input.value,
+                    minuteOption.value,
+                    period12Input.value
+                );
+            }
+            if (minute12Input.selectedOptions[0].disabled) {
+                const nextMinute = Array.from(minute12Input.options).find(
+                    option => !option.disabled
+                );
+                if (nextMinute) minute12Input.value = nextMinute.value;
+            }
+        }
+
+        function validateScheduleTime(event) {
+            timeHelp.classList.remove('text-danger');
+            timeHelp.textContent = currentTimeMode === '12'
+                ? 'Chọn giờ 12 tiếng và phút, sau đó chọn AM (sáng) hoặc PM (chiều/tối).'
+                : 'Giờ theo định dạng 24 tiếng.';
+            hour12Input.setCustomValidity('');
+            time24Input.setCustomValidity('');
+
+            if (!dateInput.value || !timeIsSelected()) return;
+
+            const [year, month, day] = dateInput.value.split('-').map(Number);
+            const [hour, minute] = selectedTime24().split(':').map(Number);
+            const selectedDateTime = new Date(year, month - 1, day, hour, minute);
+            if (selectedDateTime < new Date()) {
+                event.preventDefault();
+                const activeTimeInput = currentTimeMode === '12' ? hour12Input : time24Input;
+                activeTimeInput.setCustomValidity('Giờ hẹn phải từ thời điểm hiện tại trở đi.');
+                timeHelp.textContent = 'Giờ hẹn phải từ thời điểm hiện tại trở đi.';
+                timeHelp.classList.add('text-danger');
+                activeTimeInput.reportValidity();
+            }
+        }
+
+        function timeIsSelected() {
+            return currentTimeMode === '12'
+                ? hour12Input.value && minute12Input.value && period12Input.value
+                : time24Input.value;
+        }
+
+        function selectedTime24() {
+            if (currentTimeMode !== '12') return time24Input.value;
+            let hour = Number(hour12Input.value) % 12;
+            if (period12Input.value === 'PM') hour += 12;
+            return `${String(hour).padStart(2, '0')}:${minute12Input.value}`;
+        }
+
+        statusSelect.addEventListener('change', function() {
+            updateScheduleFields();
+            updateMinimumScheduleTime();
+        });
+        dateInput.addEventListener('change', updateMinimumScheduleTime);
+        [hour12Input, minute12Input, period12Input].forEach(input => {
+            input.addEventListener('change', updateMinimumScheduleTime);
+        });
+        scheduleForm.addEventListener('submit', validateScheduleTime);
         updateScheduleFields();
+        updateMinimumScheduleTime();
     </script>
 </body>
 </html>

@@ -126,11 +126,11 @@
             <div class="card-body">
                 <h5 class="card-title text-success fw-bold mb-3"><i class="fas fa-wallet me-2"></i>Trạng thái tài khoản của bạn</h5>
                 <div class="row text-secondary small">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="mb-1">Lượt miễn phí còn lại:</p>
                         <h5 class="fw-bold text-dark">{{ profile_account.free_posts_left|default:0 }} tin</h5>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="mb-1">Tin trong gói còn lại:</p>
                         <h5 class="fw-bold text-dark">
                             {% if profile_account.is_package_active %}
@@ -140,7 +140,7 @@
                             {% endif %}
                         </h5>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <p class="mb-1">Hạn sử dụng gói:</p>
                         <h5 class="fw-bold text-dark">
                             {% if profile_account.is_package_active and profile_account.package_expires_at %}
@@ -153,9 +153,68 @@
                             {% endif %}
                         </h5>
                     </div>
+                    <div class="col-md-3">
+                        <p class="mb-1">Tổng mua gói:</p>
+                        <h5 class="fw-bold text-success money">
+                            {{ package_spending.total_amount|default:0|floatformat:0 }} VNĐ
+                        </h5>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <details id="package-spending" class="card shadow-sm border-0 rounded-4 mb-4 bg-white" {% if selected_spending_month %}open{% endif %}>
+            <summary class="card-body p-4 fw-bold text-success" style="cursor: pointer;">
+                <i class="fas fa-chart-column me-2"></i>Thống kê kinh phí mua gói
+                <span class="text-muted fw-normal small ms-2">
+                    ({{ package_spending.transaction_count|default:0 }} giao dịch đã xác nhận)
+                </span>
+            </summary>
+            <div class="card-body border-top p-4">
+                <p class="text-muted small mb-3">
+                    Chọn tháng cần xem. Chỉ tính giao dịch đã thanh toán và kích hoạt.
+                </p>
+                {% if package_spending_by_month %}
+                    <form method="get" action="{% url 'buy_package' %}" class="row g-2 align-items-end mb-3">
+                        {% if active_transaction %}
+                            <input type="hidden" name="transaction" value="{{ active_transaction.pk }}">
+                        {% endif %}
+                        <div class="col-sm-8 col-md-6">
+                            <label for="spending-month" class="form-label">Tháng thống kê</label>
+                            <select id="spending-month" name="spending_month" class="form-select" required>
+                                <option value="">-- Chọn tháng --</option>
+                                {% for month in package_spending_by_month %}
+                                    <option value="{{ month.payment_month|date:'Y-m' }}" {% if selected_spending_month == month.payment_month|date:'Y-m' %}selected{% endif %}>
+                                        {{ month.payment_month|date:"m/Y" }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-success-custom">Xem chi tiết tháng</button>
+                        </div>
+                    </form>
+                    {% if selected_month_spending %}
+                        <div class="rounded-3 bg-light p-3" id="monthly-spending-result">
+                            <div class="row align-items-center g-3">
+                                <div class="col-sm">
+                                    <div class="small text-muted">Tháng {{ selected_month_spending.payment_month|date:"m/Y" }}</div>
+                                    <div>{{ selected_month_spending.transaction_count }} giao dịch đã xác nhận</div>
+                                </div>
+                                <div class="col-sm-auto text-sm-end">
+                                    <div class="small text-muted">Tổng tiền tháng</div>
+                                    <div class="fw-bold fs-5 text-success money">
+                                        {{ selected_month_spending.total_amount|floatformat:0 }} VNĐ
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <p class="text-muted small mb-0">Chưa có giao dịch mua gói nào được xác nhận.</p>
+                {% endif %}
+            </div>
+        </details>
 
         <!-- Form chọn gói và thanh toán -->
         <div class="card shadow-sm border-0 rounded-4">
@@ -267,6 +326,13 @@
     <!-- Script xử lý hiển thị, sinh QR động và popup thông báo -->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            document.querySelectorAll(".money").forEach(function(element) {
+                const amount = Number(element.textContent.replace(/[^\d-]/g, ""));
+                if (Number.isFinite(amount)) {
+                    element.textContent = amount.toLocaleString("vi-VN") + " VNĐ";
+                }
+            });
+
             const priceElements = document.querySelectorAll(".price-text");
             priceElements.forEach(function(el) {
                 let rawPrice = parseInt(el.getAttribute("data-price"));

@@ -173,7 +173,18 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-semibold text-secondary">Địa chỉ công ty:</label>
-                            {{ p_form.address }}
+                            <input
+                                type="text"
+                                name="address"
+                                id="id_address"
+                                class="form-control"
+                                placeholder="Nhập địa chỉ công ty..."
+                                maxlength="255"
+                                value="{{ p_form.address.value|default_if_none:'' }}"
+                            >
+                            {% if p_form.address.errors %}
+                                <div class="text-danger small">{{ p_form.address.errors }}</div>
+                            {% endif %}
                         </div>
                         <div class="mb-3">
                             <label class="form-label fw-semibold text-secondary">Website:</label>
@@ -347,9 +358,10 @@
             }
         });
 
-        // Ẩn input address gốc của form Profile để thay bằng cụm chọn động
+        // Ứng viên dùng cụm địa chỉ động; địa chỉ công ty luôn cần ô nhập trực tiếp.
         const hiddenAddressInput = document.querySelector('#id_address');
-        if (hiddenAddressInput) {
+        const isRecruiterProfile = {{ is_recruiter|yesno:"true,false" }};
+        if (hiddenAddressInput && !isRecruiterProfile) {
             hiddenAddressInput.type = 'hidden';
         }
 

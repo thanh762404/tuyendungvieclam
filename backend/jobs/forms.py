@@ -113,7 +113,12 @@ class CompanyProfileForm(forms.ModelForm):
                 }
             ),
             "company_logo": forms.FileInput(attrs={"class": "form-control"}),
-            "address": forms.TextInput(attrs={"class": "form-control"}),
+            "address": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "Nhập địa chỉ công ty...",
+                }
+            ),
             "website": forms.URLInput(attrs={"class": "form-control"}),
             "description": forms.Textarea(
                 attrs={"class": "form-control", "rows": 4}

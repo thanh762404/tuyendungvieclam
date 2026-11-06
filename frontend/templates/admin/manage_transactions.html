@@ -33,7 +33,7 @@
         .section-title { color: var(--ink); font-weight: 700; }
         .form-select { min-height: 44px; border-color: #e1e7ed; }
         .form-select:focus { border-color: #7bc99e; box-shadow: 0 0 0 .2rem rgba(0, 169, 79, .12); }
-        .transactions-table { min-width: 860px; margin-bottom: 0; }
+        .transactions-table { min-width: 1120px; margin-bottom: 0; }
         .transactions-table thead th { color: #68778a; font-size: .75rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: #f7f9fb; border-bottom: 1px solid #e8edf2; white-space: nowrap; }
         .transactions-table tbody td { padding-top: 1rem; padding-bottom: 1rem; border-color: #edf1f4; }
         .transactions-table tbody tr:hover { background: #f9fcfa; }
@@ -58,12 +58,53 @@
         .proof-thumb:hover {
             transform: scale(1.08);
         }
+        .container.my-4 {
+            width: 100%;
+            max-width: none;
+            padding-left: clamp(16px, 2vw, 36px);
+            padding-right: clamp(16px, 2vw, 36px);
+        }
+        .admin-layout {
+            display: grid;
+            grid-template-columns: minmax(220px, 18%) minmax(0, 1fr);
+            gap: 1.5rem;
+            margin-left: 0;
+            margin-right: 0;
+        }
+        .admin-sidebar-column,
+        .admin-content-column {
+            width: auto;
+            max-width: none;
+            padding-left: 0;
+            padding-right: 0;
+            min-width: 0;
+        }
+        .admin-sidebar-column { margin-bottom: 0 !important; }
+        .transactions-table {
+            width: 100%;
+            min-width: 0;
+            table-layout: fixed;
+        }
+        .transactions-table thead th {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            vertical-align: middle;
+        }
+        .transactions-table tbody td { overflow-wrap: anywhere; }
+        .transactions-table th:nth-child(1), .transactions-table td:nth-child(1) { width: 12%; }
+        .transactions-table th:nth-child(2), .transactions-table td:nth-child(2) { width: 19%; }
+        .transactions-table th:nth-child(3), .transactions-table td:nth-child(3) { width: 13%; }
+        .transactions-table th:nth-child(4), .transactions-table td:nth-child(4) { width: 16%; }
+        .transactions-table th:nth-child(5), .transactions-table td:nth-child(5) { width: 12%; }
+        .transactions-table th:nth-child(6), .transactions-table td:nth-child(6) { width: 13%; }
+        .transactions-table th:nth-child(7), .transactions-table td:nth-child(7) { width: 15%; }
         @media (max-width: 767.98px) {
             .container { padding-left: 1rem; padding-right: 1rem; }
             .sidebar { min-height: auto; }
             .sidebar .nav-link { padding: 10px 12px; }
             .stat-card { padding: .95rem; }
             .table-card { padding: 1rem !important; }
+            .admin-layout { grid-template-columns: minmax(0, 1fr); }
         }
     </style>
 </head>
@@ -86,9 +127,9 @@
             {% endfor %}
         {% endif %}
 
-        <div class="row">
+        <div class="row admin-layout">
             <!-- Sidebar -->
-            <div class="col-md-3 mb-4">
+            <div class="col-md-3 mb-4 admin-sidebar-column">
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
@@ -101,7 +142,7 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9">
+            <div class="col-md-9 admin-content-column">
                 <div class="page-heading">
                     <span class="eyebrow">Bảng điều khiển quản trị</span>
                     <h1 class="mb-1 mt-1">Giao dịch &amp; gói cước</h1>
@@ -217,7 +258,7 @@
                         </div>
                     </form>
 
-                    <div class="table-responsive">
+                    <div>
                         <table class="table table-hover align-middle transactions-table">
                             <thead class="table-light">
                                 <tr>
@@ -235,7 +276,10 @@
                                 <tr>
                                     <td>
                                         <span class="transaction-id">#{{ tx.id }}</span>
-                                        <div><small class="text-muted">{{ tx.created_at|date:"d/m/Y H:i" }}</small></div>
+                                        <small class="d-block text-muted">Tạo: {{ tx.created_at|date:"d/m/Y H:i" }}</small>
+                                        {% if tx.verified_at %}
+                                            <small class="d-block text-success">Kích hoạt: {{ tx.verified_at|date:"d/m/Y H:i" }}</small>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         <div class="fw-bold text-dark">{{ tx.recruiter.display_name }}</div>
@@ -250,7 +294,6 @@
                                         <div><small class="text-muted">Nội dung: <code>{{ tx.payment_code }}</code></small></div>
                                         {% if tx.sepay_transaction_id %}
                                             <div><small class="text-success">SePay: {{ tx.sepay_transaction_id }}</small></div>
-                                            <div><small class="text-muted">Xác nhận: {{ tx.verified_at|date:"d/m/Y H:i" }}</small></div>
                                         {% endif %}
                                         {% if tx.sepay_received_amount %}
                                             <div>
@@ -319,7 +362,7 @@
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted py-5">
+                                    <td colspan="8" class="text-center text-muted py-5">
                                         <i class="fas fa-receipt fa-2x mb-3 text-black-50"></i>
                                         <p class="mb-0">Chưa có giao dịch mua gói cước nào.</p>
                                     </td>

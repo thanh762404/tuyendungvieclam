@@ -28,6 +28,11 @@
         .application-stat-link:hover { color: inherit; transform: translateY(-2px); box-shadow: 0 .35rem .9rem rgba(23, 43, 77, .12); }
         .application-stat-link:focus-visible { outline: 3px solid rgba(0, 177, 79, .35); outline-offset: 3px; }
         @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
+        .container.my-4 { width: 100%; max-width: none; padding-left: clamp(16px, 2vw, 36px); padding-right: clamp(16px, 2vw, 36px); }
+        .admin-layout { display: grid; grid-template-columns: minmax(220px, 18%) minmax(0, 1fr); gap: 1.5rem; margin-left: 0; margin-right: 0; }
+        .admin-sidebar-column, .admin-content-column { width: auto; max-width: none; min-width: 0; padding-left: 0; padding-right: 0; }
+        .admin-sidebar-column { margin-bottom: 0 !important; }
+        @media (max-width: 767.98px) { .admin-layout { grid-template-columns: minmax(0, 1fr); } }
     </style>
 </head>
 <body>
@@ -49,9 +54,9 @@
             {% endfor %}
         {% endif %}
 
-        <div class="row">
+        <div class="row admin-layout">
             <!-- Sidebar -->
-            <div class="col-md-3 mb-4">
+            <div class="col-md-3 mb-4 admin-sidebar-column">
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
@@ -64,7 +69,7 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9">
+            <div class="col-md-9 admin-content-column">
                 <div class="card admin-card shadow-sm p-4 bg-white">
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
                         <div>

@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Prefetch, Q, Sum
 from django.db.models.functions import TruncMonth
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
@@ -14,7 +14,13 @@ from django.urls import reverse
 from django.utils import timezone
 
 from accounts.models import User
-from .models import Application, ContactMessage, Job, PackageTransaction
+from .models import (
+    Application,
+    ContactMessage,
+    Job,
+    PackageTransaction,
+    RecruiterAccount,
+)
 
 
 @staff_member_required
@@ -252,7 +258,11 @@ def admin_reject_recruiter(request, pk):
 def admin_manage_jobs(request):
     """Show recruiters, then one selected recruiter's chosen expiration group."""
     recruiter_id = request.GET.get("recruiter", "").strip()
+    section = request.GET.get("section", "").strip()
     status_filter = request.GET.get("status", "").strip()
+    if section not in {"active", "expired", "packages"}:
+        section = status_filter if status_filter in {"active", "expired"} else "active"
+    status_filter = section if section in {"active", "expired"} else ""
     query = request.GET.get("q", "").strip()
     now = timezone.now()
     all_jobs_view = request.GET.get("all") == "1"
@@ -272,6 +282,30 @@ def admin_manage_jobs(request):
 
     if recruiter_id:
         recruiter = get_object_or_404(all_recruiters, pk=recruiter_id)
+        try:
+            package_account = recruiter.recruiter_account
+        except RecruiterAccount.DoesNotExist:
+            package_account = None
+        package_history = list(
+            PackageTransaction.objects.filter(recruiter=recruiter)
+            .select_related("package")
+            .order_by("-created_at")
+        )
+        total_purchased_posts = (
+            package_account.total_posts_purchased if package_account else 0
+        )
+        usable_package_posts = (
+            max(package_account.posts_remaining, 0)
+            if package_account
+            and package_account.package_expires_at
+            and package_account.package_expires_at > now
+            else 0
+        )
+        if package_account:
+            package_account.usable_package_posts = usable_package_posts
+            package_account.total_usable_posts = (
+                max(package_account.free_posts_left, 0) + usable_package_posts
+            )
         all_recruiter_jobs = Job.objects.filter(recruiter=recruiter).select_related(
             "recruiter__company_profile"
         )
@@ -280,13 +314,11 @@ def admin_manage_jobs(request):
         ).count()
         expired_job_count = all_recruiter_jobs.filter(expires_at__lt=now).count()
         jobs = all_recruiter_jobs.order_by("-created_at")
-        if status_filter == "active":
+        if section == "active":
             jobs = jobs.filter(Q(expires_at__isnull=True) | Q(expires_at__gte=now))
-        elif status_filter == "expired":
+        elif section == "expired":
             jobs = jobs.filter(expires_at__lt=now)
-        else:
-            status_filter = ""
-        if query:
+        if query and section != "packages":
             jobs = jobs.filter(
                 Q(title__icontains=query) | Q(company_name__icontains=query)
             )
@@ -301,11 +333,16 @@ def admin_manage_jobs(request):
                 "jobs": job_page,
                 "job_page": job_page,
                 "status_filter": status_filter,
+                "section": section,
                 "query": query,
                 "active_job_count": active_job_count,
                 "expired_job_count": expired_job_count,
                 "selected_recruiter_job_count": recruiter.job_count,
                 "all_jobs_view": all_jobs_view,
+                "package_account": package_account,
+                "package_history": package_history,
+                "total_purchased_posts": total_purchased_posts,
+                "now": now,
             },
         )
 
@@ -356,6 +393,49 @@ def admin_manage_jobs(request):
     recruiter_page = Paginator(recruiters.order_by("-date_joined"), 10).get_page(
         request.GET.get("page")
     )
+    recruiter_page.object_list = list(
+        recruiter_page.object_list.select_related(
+            "company_profile",
+            "recruiter_account__active_package",
+        ).prefetch_related(
+            Prefetch(
+                "packagetransaction_set",
+                queryset=PackageTransaction.objects.select_related("package").order_by(
+                    "-created_at"
+                ),
+                to_attr="package_history",
+            ),
+            Prefetch(
+                "job_set",
+                queryset=Job.objects.order_by("-created_at"),
+                to_attr="recruiter_jobs",
+            ),
+        )
+    )
+    now = timezone.now()
+    for recruiter in recruiter_page:
+        try:
+            package_account = recruiter.recruiter_account
+        except RecruiterAccount.DoesNotExist:
+            package_account = None
+        recruiter.package_account = package_account
+        recruiter.package_history = getattr(recruiter, "package_history", [])
+        recruiter.recruiter_jobs = getattr(recruiter, "recruiter_jobs", [])
+        if package_account:
+            package_account.usable_package_posts = (
+                max(package_account.posts_remaining, 0)
+                if package_account.package_expires_at
+                and package_account.package_expires_at > now
+                else 0
+            )
+            package_account.total_usable_posts = (
+                max(package_account.free_posts_left, 0)
+                + package_account.usable_package_posts
+            )
+            package_account.approved_purchase_count = sum(
+                transaction.status == "approved"
+                for transaction in recruiter.package_history
+            )
     return render(
         request,
         "admin/manage_jobs.html",
@@ -365,6 +445,7 @@ def admin_manage_jobs(request):
             "query": query,
             "recruiter_count": recruiters.count(),
             "job_summary": job_summary,
+            "now": now,
         },
     )
 
@@ -485,7 +566,8 @@ def admin_manage_transactions(request):
     
     all_transactions = PackageTransaction.objects.all()
     transactions = all_transactions.select_related(
-        "recruiter__company_profile", "package"
+        "recruiter__company_profile",
+        "package",
     ).order_by("-created_at")
 
     if status_filter:

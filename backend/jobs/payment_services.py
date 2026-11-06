@@ -28,14 +28,12 @@ def activate_package_transaction(
             if duplicate:
                 return False
             purchase.sepay_transaction_id = str(sepay_transaction_id)
-            purchase.verified_at = timezone.now()
             purchase.sepay_received_amount = sepay_received_amount
         purchase.status = "approved"
-        update_fields = ["status"]
+        purchase.verified_at = timezone.now()
+        update_fields = ["status", "verified_at"]
         if sepay_transaction_id:
-            update_fields.extend(
-                ["sepay_transaction_id", "sepay_received_amount", "verified_at"]
-            )
+            update_fields.extend(["sepay_transaction_id", "sepay_received_amount"])
         try:
             with transaction.atomic():
                 purchase.save(update_fields=update_fields)
@@ -49,23 +47,30 @@ def activate_package_transaction(
             pk=recruiter_account.pk
         )
         recruiter_account.active_package = purchase.package
-        recruiter_account.posts_remaining += purchase.package.post_limit
+        recruiter_account.total_posts_purchased += purchase.package_posts_count
         now = timezone.now()
         package_is_active = (
             recruiter_account.package_expires_at is not None
             and recruiter_account.package_expires_at > now
         )
         if package_is_active:
-            recruiter_account.posts_remaining += purchase.package.post_limit
+            recruiter_account.posts_remaining += purchase.package_posts_count
             recruiter_account.package_expires_at += timedelta(
                 days=purchase.package.duration_days
             )
         else:
-            recruiter_account.posts_remaining = purchase.package.post_limit
+            recruiter_account.posts_remaining = purchase.package_posts_count
+            recruiter_account.package_started_at = now
             recruiter_account.package_expires_at = now + timedelta(
                 days=purchase.package.duration_days
             )
         recruiter_account.save(
-            update_fields=["active_package", "posts_remaining", "package_expires_at"]
+            update_fields=[
+                "active_package",
+                "posts_remaining",
+                "total_posts_purchased",
+                "package_started_at",
+                "package_expires_at",
+            ]
         )
         return True

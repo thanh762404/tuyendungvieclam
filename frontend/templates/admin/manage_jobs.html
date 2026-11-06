@@ -36,6 +36,11 @@
         .topcv-page-btn:hover { border-color: var(--primary-color); color: var(--primary-color); background: #f0fdf4; }
         .topcv-page-btn.disabled { opacity: .35; pointer-events: none; border-color: #e5e7eb; }
         @media (max-width: 767.98px) { .sidebar { min-height: auto; } }
+        .container.my-4 { width: 100%; max-width: none; padding-left: clamp(16px, 2vw, 36px); padding-right: clamp(16px, 2vw, 36px); }
+        .admin-layout { display: grid; grid-template-columns: minmax(220px, 18%) minmax(0, 1fr); gap: 1.5rem; margin-left: 0; margin-right: 0; }
+        .admin-sidebar-column, .admin-content-column { width: auto; max-width: none; min-width: 0; padding-left: 0; padding-right: 0; }
+        .admin-sidebar-column { margin-bottom: 0 !important; }
+        @media (max-width: 767.98px) { .admin-layout { grid-template-columns: minmax(0, 1fr); } }
     </style>
 </head>
 <body>
@@ -58,9 +63,9 @@
             {% endfor %}
         {% endif %}
 
-        <div class="row">
+        <div class="row admin-layout">
             <!-- Sidebar -->
-            <div class="col-md-3 mb-4">
+            <div class="col-md-3 mb-4 admin-sidebar-column">
                 <div class="p-3 sidebar shadow-sm">
                     <ul class="nav flex-column">
                         <li class="nav-item"><a class="nav-link" href="{% url 'custom_admin_dashboard' %}"><i class="fas fa-chart-pie me-2"></i> Tổng quan</a></li>
@@ -79,11 +84,14 @@
                                         </a>
                                         {% if selected_recruiter.pk == recruiter.pk %}
                                         <div class="ms-3 mb-2">
-                                            <a href="?recruiter={{ recruiter.pk }}&all=1&status=active" class="nav-link recruiter-status-link d-flex justify-content-between {% if status_filter == 'active' %}active{% endif %}">
+                                            <a href="?recruiter={{ recruiter.pk }}&all=1&section=active" class="nav-link recruiter-status-link d-flex justify-content-between {% if section == 'active' %}active{% endif %}">
                                                 <span>Tin còn hạn</span><span class="badge bg-success">{{ recruiter.active_job_count }}</span>
                                             </a>
-                                            <a href="?recruiter={{ recruiter.pk }}&all=1&status=expired" class="nav-link recruiter-status-link d-flex justify-content-between {% if status_filter == 'expired' %}active{% endif %}">
+                                            <a href="?recruiter={{ recruiter.pk }}&all=1&section=expired" class="nav-link recruiter-status-link d-flex justify-content-between {% if section == 'expired' %}active{% endif %}">
                                                 <span>Tin hết hạn</span><span class="badge bg-secondary">{{ recruiter.expired_job_count }}</span>
+                                            </a>
+                                            <a href="?recruiter={{ recruiter.pk }}&all=1&section=packages" class="nav-link recruiter-status-link d-flex justify-content-between {% if section == 'packages' %}active{% endif %}">
+                                                <span>Gói mua</span><i class="fas fa-box-open small"></i>
                                             </a>
                                         </div>
                                         {% endif %}
@@ -101,7 +109,7 @@
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9">
+            <div class="col-md-9 admin-content-column">
                 <div class="card admin-card shadow-sm p-4 bg-white">
                     {% if selected_recruiter or all_jobs_view %}
                     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
@@ -116,10 +124,10 @@
                                 <div class="small text-muted">{{ selected_recruiter.email|default:"Chưa cập nhật email" }}</div>
                             </div>
                         </div>
-                        {% if status_filter == 'active' %}
-                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=active" class="badge bg-success px-3 py-2 text-decoration-none">Tin còn hạn: {{ active_job_count }}</a>
-                        {% elif status_filter == 'expired' %}
-                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=expired" class="badge bg-secondary px-3 py-2 text-decoration-none">Tin hết hạn: {{ expired_job_count }}</a>
+                        {% if section == 'active' %}
+                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&section=active" class="badge bg-success px-3 py-2 text-decoration-none">Tin còn hạn: {{ active_job_count }}</a>
+                        {% elif section == 'expired' %}
+                            <a href="?recruiter={{ selected_recruiter.pk }}&all=1&section=expired" class="badge bg-secondary px-3 py-2 text-decoration-none">Tin hết hạn: {{ expired_job_count }}</a>
                         {% else %}
                             <span class="badge {% if selected_recruiter.is_active %}bg-success{% else %}bg-warning text-dark{% endif %} px-3 py-2">
                                 {% if selected_recruiter.is_active %}Đang hoạt động{% else %}Chưa kích hoạt{% endif %}
@@ -136,16 +144,104 @@
                     {% endif %}
 
                     {% if selected_recruiter or all_jobs_view %}
+                    {% if selected_recruiter %}
+                    <nav class="nav nav-pills gap-2 mb-4" aria-label="Nội dung nhà tuyển dụng">
+                        <a class="nav-link {% if section == 'active' %}active{% endif %}" href="?recruiter={{ selected_recruiter.pk }}&all=1&section=active">
+                            Tin còn hạn <span class="badge {% if section == 'active' %}bg-light text-success{% else %}bg-success{% endif %} ms-1">{{ active_job_count }}</span>
+                        </a>
+                        <a class="nav-link {% if section == 'expired' %}active{% endif %}" href="?recruiter={{ selected_recruiter.pk }}&all=1&section=expired">
+                            Tin hết hạn <span class="badge {% if section == 'expired' %}bg-light text-secondary{% else %}bg-secondary{% endif %} ms-1">{{ expired_job_count }}</span>
+                        </a>
+                        <a class="nav-link {% if section == 'packages' %}active{% endif %}" href="?recruiter={{ selected_recruiter.pk }}&all=1&section=packages">
+                            Gói mua
+                        </a>
+                    </nav>
+                    {% endif %}
+                    {% if selected_recruiter and section == 'packages' %}
+                    <section class="border rounded-3 bg-light p-3 mb-4">
+                        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+                            <div>
+                                <h5 class="fw-bold mb-1">Gói đăng tin của nhà tuyển dụng</h5>
+                                <div class="small text-muted">Tổng lượt đã mua, số lượt hiện dùng được và thời hạn gói.</div>
+                            </div>
+                            <a class="btn btn-sm btn-outline-success" href="{% url 'admin_manage_transactions' %}?q={{ selected_recruiter.username|urlencode }}">Xem giao dịch</a>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="bg-white border rounded-3 p-3 h-100">
+                                    <div class="small text-muted">Tổng lượt đã mua</div>
+                                    <div class="fs-4 fw-bold">{{ total_purchased_posts }}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="bg-white border rounded-3 p-3 h-100">
+                                    <div class="small text-muted">Lượt gói hiện có thể dùng</div>
+                                    <div class="fs-4 fw-bold {% if package_account.usable_package_posts %}text-success{% else %}text-secondary{% endif %}">{{ package_account.usable_package_posts|default:0 }}</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="bg-white border rounded-3 p-3 h-100">
+                                    <div class="small text-muted">Gói đang áp dụng</div>
+                                    <div class="fw-semibold">{{ package_account.active_package.name|default:"Chưa có gói" }}</div>
+                                    {% if package_account.package_expires_at %}
+                                        {% if package_account.package_expires_at > now %}
+                                            <span class="badge bg-success mt-1">Còn hạn</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary mt-1">Đã hết hạn</span>
+                                        {% endif %}
+                                        <div class="small text-muted mt-1">
+                                            Từ {{ package_account.package_started_at|date:"d/m/Y H:i"|default:"Chưa ghi nhận" }}
+                                            đến {{ package_account.package_expires_at|date:"d/m/Y H:i" }}
+                                        </div>
+                                    {% else %}
+                                        <div class="small text-muted">Chưa ghi nhận thời hạn</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <span class="badge rounded-pill text-bg-light border text-secondary">Tin miễn phí còn trong CSDL: {{ package_account.free_posts_left|default:0 }}</span>
+                            <span class="badge rounded-pill text-bg-success">Tổng lượt đăng dùng được hiện tại: {{ package_account.total_usable_posts|default:0 }}</span>
+                        </div>
+                        <h6 class="fw-bold mb-2">Lịch sử mua gói</h6>
+                        <div class="table-responsive bg-white border rounded-3">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr><th>Mã GD</th><th>Ngày mua</th><th>Gói đã mua</th><th>Lượt mua</th><th>Số tiền</th><th>Trạng thái</th></tr>
+                                </thead>
+                                <tbody>
+                                    {% for purchase in package_history %}
+                                    <tr>
+                                        <td>#{{ purchase.pk }}</td>
+                                        <td>{{ purchase.verified_at|default:purchase.created_at|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ purchase.package_name|default:purchase.package.name }}</td>
+                                        <td>{{ purchase.package_posts_count }}</td>
+                                        <td>{{ purchase.amount|floatformat:0 }} đ</td>
+                                        <td>
+                                            {% if purchase.status == "approved" %}<span class="badge bg-success">Đã kích hoạt</span>
+                                            {% elif purchase.status == "pending" %}<span class="badge bg-warning text-dark">Chờ thanh toán</span>
+                                            {% else %}<span class="badge bg-secondary">Đã từ chối</span>{% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="6" class="text-center text-muted py-3">Chưa có giao dịch mua gói.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    {% endif %}
+                    {% if not selected_recruiter or section != 'packages' %}
                     <form method="GET" class="row g-2 mb-3">
                         {% if selected_recruiter %}<input type="hidden" name="recruiter" value="{{ selected_recruiter.pk }}">{% endif %}
                         {% if all_jobs_view %}<input type="hidden" name="all" value="1">{% endif %}
-                        {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+                        {% if selected_recruiter %}<input type="hidden" name="section" value="{{ section }}">{% endif %}
                         <div class="col-md-9">
                             <input type="search" name="q" value="{{ query }}" class="form-control bg-light" placeholder="Tìm tiêu đề hoặc tên công ty...">
                         </div>
                         <div class="col-md-3 d-flex gap-2">
                             <button type="submit" class="btn btn-success flex-grow-1"><i class="fas fa-search me-1"></i>Lọc tin</button>
-                            {% if query %}<a href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if status_filter %}status={{ status_filter }}{% endif %}" class="btn btn-outline-secondary" title="Xóa tìm kiếm"><i class="fas fa-rotate-left"></i></a>{% endif %}
+                            {% if query %}<a href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&section={{ section }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if not selected_recruiter and status_filter %}status={{ status_filter }}{% endif %}" class="btn btn-outline-secondary" title="Xóa tìm kiếm"><i class="fas fa-rotate-left"></i></a>{% endif %}
                         </div>
                     </form>
                     <div class="table-responsive">
@@ -235,14 +331,15 @@
                     <div class="topcv-pagination-wrap">
                         <div class="d-flex align-items-center gap-3">
                             {% if job_page.has_previous %}
-                                <a class="topcv-page-btn" href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}q={{ query|urlencode }}&page={{ job_page.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
+                                <a class="topcv-page-btn" href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&section={{ section }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if not selected_recruiter and status_filter %}status={{ status_filter }}&{% endif %}q={{ query|urlencode }}&page={{ job_page.previous_page_number }}" aria-label="Trang trước"><i class="fas fa-chevron-left"></i></a>
                             {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-left"></i></span>{% endif %}
                             <span class="text-secondary fw-medium">Trang <strong class="text-dark">{{ job_page.number }}</strong> / {{ job_page.paginator.num_pages }}</span>
                             {% if job_page.has_next %}
-                                <a class="topcv-page-btn" href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if status_filter %}status={{ status_filter }}&{% endif %}q={{ query|urlencode }}&page={{ job_page.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
+                                <a class="topcv-page-btn" href="?{% if selected_recruiter %}recruiter={{ selected_recruiter.pk }}&section={{ section }}&{% endif %}{% if all_jobs_view %}all=1&{% endif %}{% if not selected_recruiter and status_filter %}status={{ status_filter }}&{% endif %}q={{ query|urlencode }}&page={{ job_page.next_page_number }}" aria-label="Trang sau"><i class="fas fa-chevron-right"></i></a>
                             {% else %}<span class="topcv-page-btn disabled"><i class="fas fa-chevron-right"></i></span>{% endif %}
                         </div>
                     </div>
+                    {% endif %}
                     {% endif %}
                     {% elif selected_recruiter %}
                         <div class="row g-0 border-top border-bottom py-3 mb-3 text-center">
@@ -253,13 +350,13 @@
                                 </a>
                             </div>
                             <div class="col-4 overview-stat py-2">
-                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=active" class="text-decoration-none text-reset">
+                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1&section=active" class="text-decoration-none text-reset">
                                     <div class="h4 fw-bold text-success mb-1">{{ active_job_count }}</div>
                                     <div class="small text-muted">Còn hạn</div>
                                 </a>
                             </div>
                             <div class="col-4 overview-stat py-2">
-                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1&status=expired" class="text-decoration-none text-reset">
+                                <a href="?recruiter={{ selected_recruiter.pk }}&all=1&section=expired" class="text-decoration-none text-reset">
                                     <div class="h4 fw-bold text-secondary mb-1">{{ expired_job_count }}</div>
                                     <div class="small text-muted">Hết hạn</div>
                                 </a>
@@ -326,19 +423,123 @@
                         </form>
                         <div class="list-group list-group-flush">
                             {% for recruiter in recruiter_page %}
-                            <a href="?recruiter={{ recruiter.pk }}&all=1" class="list-group-item list-group-item-action recruiter-row d-flex align-items-center gap-3 px-2 py-3">
-                                <span class="recruiter-avatar rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center"><i class="fas fa-user-tie"></i></span>
-                                <span class="flex-grow-1">
-                                    <span class="d-block fw-semibold">{{ recruiter.display_name }}</span>
-                                    <span class="small text-muted d-block">Tài khoản: {{ recruiter.username|default:recruiter.email }}</span>
-                                    <span class="small text-muted">{{ recruiter.email|default:"Chưa cập nhật email" }}</span>
-                                </span>
-                                <span class="text-end me-2">
-                                    <span class="d-block fw-semibold">{{ recruiter.job_count }}</span>
-                                    <span class="small text-muted">tin</span>
-                                </span>
-                                <i class="fas fa-chevron-right small text-muted"></i>
-                            </a>
+                            <details class="list-group-item p-0">
+                                <summary class="recruiter-row d-flex align-items-center gap-3 px-2 py-3">
+                                    <span class="recruiter-avatar rounded-circle bg-success-subtle text-success d-flex align-items-center justify-content-center"><i class="fas fa-user-tie"></i></span>
+                                    <span class="flex-grow-1">
+                                        <span class="d-block fw-semibold">{{ recruiter.display_name }}</span>
+                                        <span class="small text-muted d-block">Tài khoản: {{ recruiter.username|default:recruiter.email }}</span>
+                                        <span class="small text-muted">{{ recruiter.email|default:"Chưa cập nhật email" }}</span>
+                                    </span>
+                                    <span class="text-end me-2">
+                                        <span class="d-block fw-semibold">{{ recruiter.job_count }}</span>
+                                        <span class="small text-muted">tin tuyển dụng</span>
+                                        {% if recruiter.package_account %}
+                                            <span class="d-block small fw-semibold text-success">{{ recruiter.package_account.total_usable_posts }} lượt đăng còn dùng</span>
+                                        {% else %}
+                                            <span class="d-block small text-muted">0 lượt đăng</span>
+                                        {% endif %}
+                                    </span>
+                                    <i class="fas fa-chevron-down small text-muted"></i>
+                                </summary>
+                                <div class="border-top bg-light p-3">
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-sm-6 col-lg-3">
+                                            <div class="bg-white border rounded-3 p-3 h-100">
+                                                <div class="small text-muted">Lượt miễn phí còn</div>
+                                                <div class="fs-5 fw-bold">{{ recruiter.package_account.free_posts_left|default:0 }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-lg-3">
+                                            <div class="bg-white border rounded-3 p-3 h-100">
+                                                <div class="small text-muted">Lượt gói còn sử dụng</div>
+                                                <div class="fs-5 fw-bold {% if recruiter.package_account.usable_package_posts %}text-success{% else %}text-secondary{% endif %}">{{ recruiter.package_account.usable_package_posts|default:0 }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-lg-3">
+                                            <div class="bg-white border rounded-3 p-3 h-100">
+                                                <div class="small text-muted">Gói đang ghi nhận</div>
+                                                <div class="fw-semibold">{{ recruiter.package_account.active_package.name|default:"Chưa mua gói" }}</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-6 col-lg-3">
+                                            <div class="bg-white border rounded-3 p-3 h-100">
+                                                <div class="small text-muted">Trạng thái / hạn gói</div>
+                                                {% if recruiter.package_account.package_expires_at %}
+                                                    {% if recruiter.package_account.package_expires_at > now %}
+                                                        <span class="badge bg-success">Còn hạn</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Đã hết hạn</span>
+                                                    {% endif %}
+                                                    <div class="small mt-1">
+                                                        {{ recruiter.package_account.package_started_at|date:"d/m/Y H:i"|default:"?" }}
+                                                        – {{ recruiter.package_account.package_expires_at|date:"d/m/Y H:i" }}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted small">Chưa có thời hạn gói</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p class="small text-muted mb-3">
+                                        “Lượt đăng còn dùng” là số lượt có thể sử dụng (miễn phí + gói còn hạn), khác với số tin đang hiển thị và hạn riêng của từng tin.
+                                    </p>
+
+                                    <div class="bg-white border rounded-3 p-3 mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                                            <h6 class="fw-bold mb-0">Lịch sử mua gói ({{ recruiter.package_history|length }} lần, {{ recruiter.package_account.approved_purchase_count|default:0 }} lần đã kích hoạt)</h6>
+                                            <a class="small text-success" href="{% url 'admin_manage_transactions' %}?q={{ recruiter.username|urlencode }}">Mở trang giao dịch</a>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0">
+                                                <thead><tr><th>Ngày mua</th><th>Gói</th><th>Lượt đăng</th><th>Thời hạn</th><th>Số tiền</th><th>Trạng thái</th></tr></thead>
+                                                <tbody>
+                                                    {% for purchase in recruiter.package_history %}
+                                                    <tr>
+                                                        <td>{{ purchase.verified_at|default:purchase.created_at|date:"d/m/Y H:i" }}</td>
+                                                        <td>{{ purchase.package_name|default:purchase.package.name }}</td>
+                                                        <td>{{ purchase.package_posts_count }}</td>
+                                                        <td>{{ purchase.package.duration_days }} ngày</td>
+                                                        <td>{{ purchase.amount|floatformat:0 }} đ</td>
+                                                        <td>
+                                                            {% if purchase.status == "approved" %}<span class="badge bg-success">Đã kích hoạt</span>
+                                                            {% elif purchase.status == "pending" %}<span class="badge bg-warning text-dark">Chờ thanh toán</span>
+                                                            {% else %}<span class="badge bg-secondary">Đã từ chối</span>{% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% empty %}
+                                                    <tr><td colspan="6" class="text-muted text-center py-3">Chưa có giao dịch mua gói.</td></tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-white border rounded-3 p-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <h6 class="fw-bold mb-0">Tin tuyển dụng ({{ recruiter.recruiter_jobs|length }})</h6>
+                                            <a class="small text-success" href="?recruiter={{ recruiter.pk }}&all=1">Quản lý tin</a>
+                                        </div>
+                                        <div class="table-responsive">
+                                            <table class="table table-sm align-middle mb-0">
+                                                <thead><tr><th>Tin</th><th>Ngày đăng</th><th>Hạn tin</th><th>Trạng thái tin</th></tr></thead>
+                                                <tbody>
+                                                    {% for job in recruiter.recruiter_jobs %}
+                                                    <tr>
+                                                        <td><a href="{% url 'job_detail' job.pk %}" target="_blank" rel="noopener">{{ job.title }}</a></td>
+                                                        <td>{{ job.created_at|date:"d/m/Y H:i" }}</td>
+                                                        <td>{{ job.expires_at|date:"d/m/Y H:i"|default:"Không đặt hạn" }}</td>
+                                                        <td>{% if job.is_expired_status %}<span class="badge bg-secondary">Hết hạn</span>{% else %}<span class="badge bg-success">Còn hạn</span>{% endif %}</td>
+                                                    </tr>
+                                                    {% empty %}
+                                                    <tr><td colspan="4" class="text-muted text-center py-3">Nhà tuyển dụng chưa có tin nào.</td></tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </details>
                             {% empty %}
                             <div class="text-muted py-4">Chưa có tài khoản nhà tuyển dụng.</div>
                             {% endfor %}

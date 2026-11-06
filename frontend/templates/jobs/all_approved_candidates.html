@@ -58,7 +58,7 @@
 
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2 class="mb-0 fw-bold text-dark">
-                {% if job %}Ứng viên đạt: {{ job.title }}{% else %}Danh Sách Ứng Viên Đạt {% endif %}
+                {% if job %}Ứng viên đạt: {{ job.title }}{% else %}Danh Sách Ứng Viên Đạt{% endif %}
             </h2>
         </div>
 
@@ -118,8 +118,8 @@
                                 
                                 <!-- Ô hiển thị nút xem/tải CV của ứng viên -->
                                 <td>
-                                    {% if item.candidate.profile.cv_file %}
-                                        <a href="{{ item.candidate.profile.cv_file.url }}" target="_blank" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold text-nowrap">
+                                    {% if item.cv_file %}
+                                        <a href="{{ item.cv_file.url }}" target="_blank" rel="noopener" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold text-nowrap">
                                             <i class="fas fa-file-pdf text-danger me-1"></i> Xem CV
                                         </a>
                                     {% else %}
